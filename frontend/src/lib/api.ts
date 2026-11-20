@@ -91,6 +91,6 @@ export const api = {
 
   generateHook: (prompt: string) =>
     fetch("/api/hooks/generate", { method: "POST", headers: H, body: JSON.stringify({ prompt }) }).then(
-      (r) => j<{ ok: boolean; code: number; hooks: Record<string, any> | null; raw: string; stderr: string }>(r)
+      (r) => j<{ ok: boolean; reason: string; message: string; code: number | null; hooks: Record<string, any> | null; raw: string; stderr: string }>(r)
     ),
 };

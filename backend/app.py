@@ -839,6 +839,29 @@ def _extract_json_object(text: str):
     return clean or None
 
 
+def _classify_claude_error(stderr: str, stdout: str):
+    """Map a failed `claude` run to a (reason, message) the UI can act on."""
+    blob = ((stderr or "") + "\n" + (stdout or "")).lower()
+    auth = (
+        "not logged in", "logged out", "log in", "login", "sign in", "signed in",
+        "unauthorized", "401", "invalid api key", "api key", "credential",
+        "authenticate", "authentication", "setup-token", "oauth",
+        "token has expired", "session has expired", "please run claude",
+    )
+    limit = (
+        "usage limit", "rate limit", "rate-limit", "quota", "credit balance",
+        "too many requests", "429", "overloaded", "insufficient", "billing",
+    )
+    if any(m in blob for m in auth):
+        return ("not_authenticated",
+                "The claude CLI is not signed in on this device. Run `claude auth login` "
+                "in a terminal (or `claude setup-token` for unattended use), then try again.")
+    if any(m in blob for m in limit):
+        return ("usage_limit",
+                "Claude is unavailable right now (usage or rate limit). Try again later.")
+    return ("error", "The claude CLI returned an error — see the details below.")
+
+
 @app.post("/api/hooks/generate")
 def hooks_generate(payload: dict = Body(...)):
     prompt = (payload.get("prompt") or "").strip()
@@ -849,25 +872,39 @@ def hooks_generate(payload: dict = Body(...)):
     model = (payload.get("model") or "haiku").strip()
     if not re.match(r"^[A-Za-z0-9._-]+$", model):
         raise HTTPException(400, "invalid model")
+
+    def fail(reason, message, raw="", stderr=""):
+        # 200 with ok=False so the UI can show a precise, actionable reason
+        return {"ok": False, "reason": reason, "message": message,
+                "hooks": None, "code": None, "raw": raw, "stderr": stderr}
+
     try:
         r = subprocess.run(
             ["claude", "-p", _HOOK_PROMPT + prompt, "--model", model],
             capture_output=True, text=True, timeout=120,
         )
     except FileNotFoundError:
-        raise HTTPException(500, "the `claude` CLI is not on PATH")
+        return fail("not_installed",
+                    "The `claude` CLI isn’t installed on this machine. Install Claude Code, "
+                    "or use the ready-made examples above.")
     except subprocess.TimeoutExpired:
-        raise HTTPException(504, "generation timed out")
+        return fail("timeout",
+                    "Generation timed out after 120s. Try again, or simplify the request.")
     except Exception as e:
-        raise HTTPException(500, f"could not run claude: {e}")
+        return fail("error", f"Could not run the claude CLI: {e}")
+
+    raw = (r.stdout or "").strip()[-4000:]
+    stderr = (r.stderr or "")[-2000:]
     obj = _extract_json_object(r.stdout or "")
-    return {
-        "ok": obj is not None,
-        "code": r.returncode,
-        "hooks": obj,
-        "raw": (r.stdout or "").strip()[-4000:],
-        "stderr": (r.stderr or "")[-2000:],
-    }
+    if obj is not None:
+        return {"ok": True, "reason": "ok", "message": "", "hooks": obj,
+                "code": r.returncode, "raw": raw, "stderr": stderr}
+    if r.returncode == 0:
+        return fail("parse_failed",
+                    "claude ran but didn’t return a usable hook. See the raw output below, "
+                    "or rephrase your request.", raw, stderr)
+    reason, message = _classify_claude_error(r.stderr or "", r.stdout or "")
+    return fail(reason, message, raw, stderr)
 
 
 # --------------------------------------------------------------------------- #
