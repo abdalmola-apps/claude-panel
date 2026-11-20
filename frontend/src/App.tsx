@@ -54,7 +54,7 @@ export default function App() {
     { id: "settings", label: TITLES.settings, ico: "⚙" },
     { id: "permissions", label: TITLES.permissions, ico: "⛉", count: permCount },
     { id: "agents", label: TITLES.agents, ico: "◆", count: agents.length },
-    { id: "ultra", label: TITLES.ultra, ico: "⚡" },
+    { id: "ultra", label: TITLES.ultra, ico: "⋔" },
     { id: "sessions", label: TITLES.sessions, ico: "⧗" },
     { id: "plugins", label: TITLES.plugins, ico: "⧉" },
     { id: "skills", label: TITLES.skills, ico: "✦" },

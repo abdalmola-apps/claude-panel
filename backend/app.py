@@ -792,6 +792,85 @@ def marketplace_remove(payload: dict = Body(...)):
 
 
 # --------------------------------------------------------------------------- #
+# hooks — AI example generator
+# --------------------------------------------------------------------------- #
+_HOOK_EVENTS = (
+    "PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest",
+    "PreCompact", "PostCompact", "Stop", "Notification",
+    "SessionStart", "UserPromptSubmit",
+)
+
+_HOOK_PROMPT = (
+    "You generate ONE Claude Code hooks configuration fragment and nothing else.\n"
+    "Output ONLY a compact JSON object — no prose, no explanation, no markdown fences.\n"
+    "Top-level keys must be hook event names from: " + ", ".join(_HOOK_EVENTS) + ".\n"
+    "Each value is an array of groups: {\"matcher\": \"Tool|Tool\", "
+    "\"hooks\": [{\"type\": \"command\", \"command\": \"<shell one-liner>\"}]}.\n"
+    "Omit \"matcher\" for events that have none (Stop, SessionStart, UserPromptSubmit, "
+    "Pre/PostCompact, Notification). The command receives the hook event JSON on stdin — "
+    "use `jq -r` to read fields like .tool_input.file_path or .tool_input.command.\n"
+    "The command MUST be safe and non-destructive: never delete, overwrite, push, or send "
+    "data anywhere; prefer read-only logging, formatting, notifications, or a deny decision. "
+    "End risky pipelines with `|| true` so a failure never blocks the tool.\n"
+    "Request: "
+)
+
+
+def _extract_json_object(text: str):
+    """Pull the first balanced {...} JSON object out of model output."""
+    t = (text or "").strip()
+    if t.startswith("```"):
+        parts = t.split("```")
+        if len(parts) >= 2:
+            t = parts[1]
+            if t.lstrip().lower().startswith("json"):
+                t = t.lstrip()[4:]
+    i, j = t.find("{"), t.rfind("}")
+    if i == -1 or j == -1 or j < i:
+        return None
+    try:
+        obj = json.loads(t[i:j + 1])
+    except Exception:
+        return None
+    if not isinstance(obj, dict):
+        return None
+    # keep only recognised event keys so junk never reaches the draft
+    clean = {k: v for k, v in obj.items() if k in _HOOK_EVENTS and isinstance(v, list)}
+    return clean or None
+
+
+@app.post("/api/hooks/generate")
+def hooks_generate(payload: dict = Body(...)):
+    prompt = (payload.get("prompt") or "").strip()
+    if not prompt:
+        raise HTTPException(400, "prompt required")
+    if len(prompt) > 800:
+        raise HTTPException(400, "prompt too long (max 800 chars)")
+    model = (payload.get("model") or "haiku").strip()
+    if not re.match(r"^[A-Za-z0-9._-]+$", model):
+        raise HTTPException(400, "invalid model")
+    try:
+        r = subprocess.run(
+            ["claude", "-p", _HOOK_PROMPT + prompt, "--model", model],
+            capture_output=True, text=True, timeout=120,
+        )
+    except FileNotFoundError:
+        raise HTTPException(500, "the `claude` CLI is not on PATH")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(504, "generation timed out")
+    except Exception as e:
+        raise HTTPException(500, f"could not run claude: {e}")
+    obj = _extract_json_object(r.stdout or "")
+    return {
+        "ok": obj is not None,
+        "code": r.returncode,
+        "hooks": obj,
+        "raw": (r.stdout or "").strip()[-4000:],
+        "stderr": (r.stderr or "")[-2000:],
+    }
+
+
+# --------------------------------------------------------------------------- #
 # skills
 # --------------------------------------------------------------------------- #
 SKILLS_DIR = CLAUDE_DIR / "skills"

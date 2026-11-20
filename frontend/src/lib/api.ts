@@ -88,4 +88,9 @@ export const api = {
     fetch("/api/marketplaces/remove", { method: "POST", headers: H, body: JSON.stringify({ name }) }).then(
       (r) => j<CliResult>(r)
     ),
+
+  generateHook: (prompt: string) =>
+    fetch("/api/hooks/generate", { method: "POST", headers: H, body: JSON.stringify({ prompt }) }).then(
+      (r) => j<{ ok: boolean; code: number; hooks: Record<string, any> | null; raw: string; stderr: string }>(r)
+    ),
 };
