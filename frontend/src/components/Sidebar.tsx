@@ -1,4 +1,5 @@
 import { useStore } from "../lib/store";
+import { useT } from "../lib/i18n";
 
 export interface NavDef { id: string; label: string; ico: string; count?: number; }
 
@@ -10,12 +11,13 @@ export function Sidebar({
   onNav: (id: string) => void;
 }) {
   const { meta } = useStore();
+  const t = useT();
   return (
     <aside className="sidebar">
       <div className="brand">
         <span className="logo">C</span>
         <div>
-          Claude Control
+          {t("Claude Control", "لوحة تحكّم كلود")}
           <small>{meta?.claudeVersion || "…"}</small>
         </div>
       </div>
@@ -32,8 +34,7 @@ export function Sidebar({
       ))}
       <div className="nav-sep" />
       <div style={{ padding: "4px 10px", color: "var(--muted)", fontSize: 11, lineHeight: 1.6 }}>
-        Writes <code className="mono">~/.claude</code> directly · every change is
-        backed up first.
+        {t("Writes", "يكتب في")} <code className="mono">~/.claude</code> {t("directly · every change is backed up first.", "مباشرةً · تُؤخذ نسخة احتياطية قبل كل تغيير.")}
       </div>
     </aside>
   );

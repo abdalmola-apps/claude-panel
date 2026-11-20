@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { api } from "./api";
 import type { Meta, Scope, Settings } from "./types";
+import type { Lang } from "./i18n";
 
 type ToastKind = "ok" | "err" | "info";
 interface Toast { id: number; kind: ToastKind; msg: string; }
@@ -31,8 +32,9 @@ interface Ctx {
   toasts: Toast[];
   theme: "dark" | "light";
   toggleTheme: () => void;
-  rtl: boolean;
-  toggleRtl: () => void;
+  lang: Lang;
+  setLang: (l: Lang) => void;
+  toggleLang: () => void;
   autoApply: boolean;
   toggleAutoApply: () => void;
 }
@@ -56,7 +58,7 @@ export function Store({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<"dark" | "light">(
     () => (localStorage.getItem("cc.theme") as any) || "dark"
   );
-  const [rtl, setRtl] = useState<boolean>(() => localStorage.getItem("cc.rtl") === "1");
+  const [lang, setLang] = useState<Lang>(() => (localStorage.getItem("cc.lang") as Lang) || "en");
   const [autoApply, setAutoApply] = useState<boolean>(
     () => (localStorage.getItem("cc.autoApply") ?? "1") === "1"
   );
@@ -67,9 +69,10 @@ export function Store({ children }: { children: React.ReactNode }) {
     try { localStorage.setItem("cc.theme", theme); } catch { /**/ }
   }, [theme]);
   useEffect(() => {
-    document.documentElement.setAttribute("dir", rtl ? "rtl" : "ltr");
-    try { localStorage.setItem("cc.rtl", rtl ? "1" : "0"); } catch { /**/ }
-  }, [rtl]);
+    document.documentElement.setAttribute("dir", lang === "ar" ? "rtl" : "ltr");
+    document.documentElement.setAttribute("lang", lang);
+    try { localStorage.setItem("cc.lang", lang); } catch { /**/ }
+  }, [lang]);
   useEffect(() => {
     try { localStorage.setItem("cc.autoApply", autoApply ? "1" : "0"); } catch { /**/ }
   }, [autoApply]);
@@ -145,7 +148,7 @@ export function Store({ children }: { children: React.ReactNode }) {
     meta, scopes, scope, setScope, settings, original, dirty, loading, error,
     patch, reload, save, revert, toast, toasts,
     theme, toggleTheme: () => setTheme((t) => (t === "dark" ? "light" : "dark")),
-    rtl, toggleRtl: () => setRtl((r) => !r),
+    lang, setLang, toggleLang: () => setLang((l) => (l === "ar" ? "en" : "ar")),
     autoApply, toggleAutoApply: () => setAutoApply((a) => !a),
   };
 

@@ -130,7 +130,7 @@ export interface SystemInfo {
   mem: { totalGB: number; availGB: number };
   load1: number;
   recommended: Record<string, number>;
-  rationale: { workflow: string; subagents: string };
+  detail: { logical: number; totalGB: number; wfCpu: number; wfRam: number; subCpu: number; subRam: number };
 }
 
 export interface Meta {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "./lib/store";
+import { useT } from "./lib/i18n";
 import { api } from "./lib/api";
 import type { Agent } from "./lib/types";
 import { Sidebar, type NavDef } from "./components/Sidebar";
@@ -16,20 +17,21 @@ import { HooksPage } from "./pages/HooksPage";
 import { MemoryPage } from "./pages/MemoryPage";
 
 type Section = "settings" | "permissions" | "agents" | "ultra" | "sessions" | "plugins" | "skills" | "hooks" | "memory";
-const TITLES: Record<Section, string> = {
-  settings: "Settings",
-  permissions: "Permissions",
-  agents: "Agents",
-  ultra: "Ultra & Workflow",
-  sessions: "Sessions",
-  plugins: "Plugins",
-  skills: "Skills",
-  hooks: "Hooks",
-  memory: "Memory",
-};
 
 export default function App() {
-  const { settings, loading, error, toasts, dirty, save, revert, reload, toggleTheme, toggleRtl, autoApply } = useStore();
+  const { settings, loading, error, toasts, dirty, save, revert, reload, toggleTheme, toggleLang, autoApply } = useStore();
+  const t = useT();
+  const TITLES: Record<Section, string> = {
+    settings: t("Settings", "الإعدادات"),
+    permissions: t("Permissions", "الصلاحيات"),
+    agents: t("Agents", "الوكلاء"),
+    ultra: t("Ultra & Workflow", "الوضع الفائق وسير العمل"),
+    sessions: t("Sessions", "الجلسات"),
+    plugins: t("Plugins", "الإضافات"),
+    skills: t("Skills", "المهارات"),
+    hooks: t("Hooks", "الخطّافات"),
+    memory: t("Memory", "الذاكرة"),
+  };
   const [section, setSection] = useState<Section>("settings");
   const [cmdOpen, setCmdOpen] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -49,41 +51,42 @@ export default function App() {
   const permCount = (perms.allow?.length ?? 0) + (perms.deny?.length ?? 0) + (perms.ask?.length ?? 0);
 
   const nav: NavDef[] = [
-    { id: "settings", label: "Settings", ico: "⚙" },
-    { id: "permissions", label: "Permissions", ico: "⛉", count: permCount },
-    { id: "agents", label: "Agents", ico: "◆", count: agents.length },
-    { id: "ultra", label: "Ultra & Workflow", ico: "⚡" },
-    { id: "sessions", label: "Sessions", ico: "⧗" },
-    { id: "plugins", label: "Plugins", ico: "⧉" },
-    { id: "skills", label: "Skills", ico: "✦" },
-    { id: "hooks", label: "Hooks", ico: "⚑" },
-    { id: "memory", label: "Memory", ico: "❖" },
+    { id: "settings", label: TITLES.settings, ico: "⚙" },
+    { id: "permissions", label: TITLES.permissions, ico: "⛉", count: permCount },
+    { id: "agents", label: TITLES.agents, ico: "◆", count: agents.length },
+    { id: "ultra", label: TITLES.ultra, ico: "⚡" },
+    { id: "sessions", label: TITLES.sessions, ico: "⧗" },
+    { id: "plugins", label: TITLES.plugins, ico: "⧉" },
+    { id: "skills", label: TITLES.skills, ico: "✦" },
+    { id: "hooks", label: TITLES.hooks, ico: "⚑" },
+    { id: "memory", label: TITLES.memory, ico: "❖" },
   ];
 
   const commands: Command[] = useMemo(() => {
-    const go = (s: Section): Command[] => [{ id: "go-" + s, label: "Go to " + TITLES[s], ico: "→", run: () => setSection(s) }];
+    const go = (s: Section): Command[] => [{ id: "go-" + s, label: t("Go to", "الانتقال إلى") + " " + TITLES[s], ico: "→", run: () => setSection(s) }];
     const base: Command[] = [
       ...go("settings"), ...go("permissions"), ...go("agents"), ...go("ultra"), ...go("sessions"),
       ...go("plugins"), ...go("skills"), ...go("hooks"), ...go("memory"),
-      { id: "save", label: "Save changes", hint: "⌘S", ico: "✓", run: () => dirty && save().catch(() => {}) },
-      { id: "revert", label: "Revert unsaved changes", ico: "↺", run: revert },
-      { id: "reload", label: "Reload from disk", ico: "⟳", run: () => reload() },
-      { id: "theme", label: "Toggle theme", ico: "◐", run: toggleTheme },
-      { id: "rtl", label: "Toggle direction (LTR / RTL)", ico: "⇄", run: toggleRtl },
+      { id: "save", label: t("Save changes", "حفظ التغييرات"), hint: "⌘S", ico: "✓", run: () => dirty && save().catch(() => {}) },
+      { id: "revert", label: t("Revert unsaved changes", "التراجع عن التغييرات غير المحفوظة"), ico: "↺", run: revert },
+      { id: "reload", label: t("Reload from disk", "إعادة التحميل من القرص"), ico: "⟳", run: () => reload() },
+      { id: "theme", label: t("Toggle theme", "تبديل السمة"), ico: "◐", run: toggleTheme },
+      { id: "lang", label: t("Switch language · تبديل اللغة", "تبديل اللغة · Switch language"), ico: "⇄", run: toggleLang },
     ];
     const agentCmds: Command[] = agents.map((a) => ({
-      id: "agent-" + a.name, label: "Agent: " + a.name, hint: a.model || "", ico: "◆",
+      id: "agent-" + a.name, label: t("Agent", "وكيل") + ": " + a.name, hint: a.model || "", ico: "◆",
       run: () => setSection("agents"),
     }));
     return [...base, ...agentCmds];
-  }, [agents, dirty, save, revert, reload, toggleTheme, toggleRtl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agents, dirty, save, revert, reload, toggleTheme, toggleLang, t]);
 
-  if (loading) return <div className="loading" style={{ marginTop: "40vh" }}>Loading ~/.claude …</div>;
+  if (loading) return <div className="loading" style={{ marginTop: "40vh" }}>{t("Loading ~/.claude …", "جارٍ تحميل ‎~/.claude …")}</div>;
   if (error)
     return (
       <div className="main-inner" style={{ marginTop: "20vh" }}>
-        <div className="warn"><span className="i">⚠</span>Could not reach the backend: {error}. Is <code className="mono">run.sh</code> running on :8787?</div>
-        <button className="btn" onClick={() => reload()}>Retry</button>
+        <div className="warn"><span className="i">⚠</span>{t("Could not reach the backend:", "تعذّر الوصول إلى الخادم:")} {error}. {t("Is", "هل")} <code className="mono">run.sh</code> {t("running on :8787?", "يعمل على المنفذ ‎:8787؟")}</div>
+        <button className="btn" onClick={() => reload()}>{t("Retry", "إعادة المحاولة")}</button>
       </div>
     );
 
@@ -112,9 +115,9 @@ export default function App() {
       {dirty && !autoApply && (
         <div className="save-bar">
           <span className="dot" />
-          <span style={{ fontSize: 12.5 }}>Unsaved changes to settings.json</span>
-          <button className="btn ghost sm" onClick={revert}>Revert</button>
-          <button className="btn primary sm" onClick={() => save().catch(() => {})}>Save</button>
+          <span style={{ fontSize: 12.5 }}>{t("Unsaved changes to settings.json", "تغييرات غير محفوظة في settings.json")}</span>
+          <button className="btn ghost sm" onClick={revert}>{t("Revert", "تراجع")}</button>
+          <button className="btn primary sm" onClick={() => save().catch(() => {})}>{t("Save", "حفظ")}</button>
         </div>
       )}
 

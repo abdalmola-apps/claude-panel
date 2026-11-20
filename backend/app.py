@@ -292,15 +292,12 @@ def system_info():
             "CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS": workflow,
             "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": subagents,
         },
-        "rationale": {
-            "workflow": (
-                f"{logical} logical cores − 2 for headroom (={wf_cpu}), vs "
-                f"{round(tot,1)} GB ÷ 2 (={wf_ram}); take the min, cap 16."
-            ),
-            "subagents": (
-                f"2× logical cores (={sub_cpu}) vs {round(tot,1)} GB ÷ 1.5 "
-                f"(={int(tot // 1.5) if tot else 20}); take the min, cap at the default 20."
-            ),
+        # Raw numbers so the UI can build a localized rationale (no prose here).
+        "detail": {
+            "logical": logical,
+            "totalGB": round(tot, 1),
+            "wfCpu": wf_cpu, "wfRam": wf_ram,
+            "subCpu": sub_cpu, "subRam": int(tot // 1.5) if tot else 20,
         },
     }
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useT } from "../lib/i18n";
 
 export interface Command {
   id: string;
@@ -17,6 +18,7 @@ export function CommandPalette({
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const t = useT();
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
@@ -42,13 +44,13 @@ export function CommandPalette({
       <div className="cmdk" onMouseDown={(e) => e.stopPropagation()}>
         <input
           ref={inputRef}
-          placeholder="Jump to a section, agent, or action…"
+          placeholder={t("Jump to a section, agent, or action…", "انتقل إلى قسم أو وكيل أو إجراء…")}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={onKey}
         />
         <div className="results">
-          {filtered.length === 0 && <div className="empty">No matches</div>}
+          {filtered.length === 0 && <div className="empty">{t("No matches", "لا نتائج")}</div>}
           {filtered.map((c, i) => (
             <div
               key={c.id}

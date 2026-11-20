@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import type { RunningProc, Session } from "../lib/types";
 import { Card, Pager } from "../components/ui";
+import { useT } from "../lib/i18n";
 
 const PAGE = 20;
 
@@ -23,6 +24,7 @@ function kb(n: number): string {
 }
 
 export function SessionsPage() {
+  const tr = useT();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [running, setRunning] = useState<RunningProc[]>([]);
   const [total, setTotal] = useState(0);
@@ -66,43 +68,43 @@ export function SessionsPage() {
   return (
     <div className="main-inner" style={{ maxWidth: 1080 }}>
       <div className="page-head">
-        <h1>Sessions</h1>
-        <p>Claude Code sessions from <code className="mono">~/.claude/projects</code>. {total} total · {workingTotal} active now · {running.length} process(es) running.</p>
+        <h1>{tr("Sessions", "الجلسات")}</h1>
+        <p>{tr("Claude Code sessions from", "جلسات Claude Code من")} <code className="mono">~/.claude/projects</code>. {total} {tr("total", "إجمالي")} · {workingTotal} {tr("active now", "نشِط الآن")} · {running.length} {tr("process(es) running", "عملية/عمليات قيد التشغيل")}.</p>
       </div>
 
       <div style={{ display: "flex", gap: 10, marginBottom: 14, alignItems: "center" }}>
-        <input type="text" placeholder="Search this page by prompt, project, or id…" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 400 }} />
+        <input type="text" placeholder={tr("Search this page by prompt, project, or id…", "ابحث في هذه الصفحة بالموجّه أو المشروع أو المعرّف…")} value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 400 }} />
         <label style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--text-2)", fontSize: 12, userSelect: "none", cursor: "pointer" }}>
-          <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} style={{ width: "auto" }} /> auto-refresh
+          <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} style={{ width: "auto" }} /> {tr("auto-refresh", "تحديث تلقائي")}
         </label>
-        <button className="btn ghost sm" onClick={() => load(page)}>⟳ Refresh</button>
+        <button className="btn ghost sm" onClick={() => load(page)}>⟳ {tr("Refresh", "تحديث")}</button>
       </div>
 
       {running.length > 0 && (
-        <Card title="Running now" sub="processes matching “claude”">
+        <Card title={tr("Running now", "قيد التشغيل الآن")} sub={tr("processes matching “claude”", "العمليات المطابقة لـ ”claude“")}>
           {running.map((p) => (
             <div className="plug" key={String(p.pid)}>
               <div className="meta">
-                <div className="nm">pid {p.pid} · up {uptime(p.uptimeSec)}</div>
-                <div className="src mono">{p.cwd || "(cwd unknown)"}</div>
+                <div className="nm">pid {p.pid} · {tr("up", "تشغيل")} {uptime(p.uptimeSec)}</div>
+                <div className="src mono">{p.cwd || tr("(cwd unknown)", "(مسار العمل غير معروف)")}</div>
               </div>
-              <span className="badge allow">● live</span>
+              <span className="badge allow">● {tr("live", "نشِط")}</span>
             </div>
           ))}
         </Card>
       )}
 
       <div className="card">
-        <header><h2>Recent sessions</h2><span className="sub">newest first{t ? ` · ${filtered.length} match on this page` : ""}</span></header>
+        <header><h2>{tr("Recent sessions", "الجلسات الأخيرة")}</h2><span className="sub">{tr("newest first", "الأحدث أولاً")}{t ? ` · ${filtered.length} ${tr("match on this page", "مطابقة في هذه الصفحة")}` : ""}</span></header>
         <div className="body" style={{ padding: 0 }}>
-          {loading && <div className="loading">Loading…</div>}
-          {!loading && filtered.length === 0 && <div className="empty-state">No sessions{t ? " match your search on this page" : ""}.</div>}
+          {loading && <div className="loading">{tr("Loading…", "جارٍ التحميل…")}</div>}
+          {!loading && filtered.length === 0 && <div className="empty-state">{tr("No sessions", "لا جلسات")}{t ? tr(" match your search on this page", " مطابقة لبحثك في هذه الصفحة") : ""}.</div>}
           {filtered.map((s) => (
             <div key={s.path} className="row" style={{ padding: "11px 16px", gap: 12 }}>
               <div style={{ width: 70, flexShrink: 0 }}>
-                {s.working ? <span className="badge allow">● working</span>
-                  : s.live ? <span className="badge ask">live</span>
-                  : <span className="badge neutral">idle</span>}
+                {s.working ? <span className="badge allow">● {tr("working", "يعمل")}</span>
+                  : s.live ? <span className="badge ask">{tr("live", "نشِط")}</span>
+                  : <span className="badge neutral">{tr("idle", "خامل")}</span>}
               </div>
               <div className="label" style={{ minWidth: 0 }}>
                 <div className="t" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.title}</div>
@@ -111,13 +113,13 @@ export function SessionsPage() {
                 </div>
               </div>
               <div className="control" style={{ gap: 14, color: "var(--muted)", fontSize: 11.5, flexShrink: 0 }}>
-                <span title="events">{s.events >= 0 ? `${s.events} ev` : kb(s.size)}</span>
+                <span title={tr("events", "الأحداث")}>{s.events >= 0 ? `${s.events} ${tr("ev", "حدث")}` : kb(s.size)}</span>
                 <span style={{ width: 66, textAlign: "end" }}>{ago(s.ageSec)}</span>
               </div>
             </div>
           ))}
         </div>
-        <Pager page={page} pageCount={pageCount} onPage={setPage} total={total} unit="sessions" />
+        <Pager page={page} pageCount={pageCount} onPage={setPage} total={total} unit={tr("sessions", "جلسات")} />
       </div>
     </div>
   );

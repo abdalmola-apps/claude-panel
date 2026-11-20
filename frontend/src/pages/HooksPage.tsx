@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../lib/store";
+import { useT } from "../lib/i18n";
 import { Card, Modal, Row } from "../components/ui";
 
 export function HooksPage() {
   const { settings, patch, toast, meta } = useStore();
+  const tr = useT();
   const hooks = settings?.hooks ?? {};
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -28,23 +30,23 @@ export function HooksPage() {
   return (
     <div className="main-inner">
       <div className="page-head">
-        <h1>Hooks</h1>
-        <p>Commands Claude Code runs on lifecycle events ({(meta?.hookEvents ?? []).slice(0, 4).join(", ")}…). Edited as raw JSON, applied to the settings draft.</p>
+        <h1>{tr("Hooks", "الخطّافات")}</h1>
+        <p>{tr("Commands Claude Code runs on lifecycle events (", "أوامر ينفّذها Claude Code عند أحداث دورة الحياة (")}{(meta?.hookEvents ?? []).slice(0, 4).join(", ")}{tr("…). Edited as raw JSON, applied to the settings draft.", "…). تُحرَّر كصيغة JSON خام، وتُطبَّق على مسودة الإعدادات.")}</p>
       </div>
 
       <div style={{ display: "flex", gap: 10, marginBottom: 12, alignItems: "center" }}>
-        <input type="text" placeholder="Search hooks by event or matcher…" value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 380 }} />
-        <button className="btn sm" style={{ marginInlineStart: "auto" }} onClick={() => { setDraft(JSON.stringify(hooks, null, 2)); setErr(null); setOpen(true); }}>Edit raw JSON</button>
+        <input type="text" placeholder={tr("Search hooks by event or matcher…", "بحث في الخطّافات حسب الحدث أو المُطابِق…")} value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 380 }} />
+        <button className="btn sm" style={{ marginInlineStart: "auto" }} onClick={() => { setDraft(JSON.stringify(hooks, null, 2)); setErr(null); setOpen(true); }}>{tr("Edit raw JSON", "تحرير JSON الخام")}</button>
       </div>
 
-      <Card title="Configured hooks" sub={summary.length ? `${summary.length} matcher group(s)` : "none"}>
+      <Card title={tr("Configured hooks", "الخطّافات المُعدّة")} sub={summary.length ? `${summary.length} ${tr("matcher group(s)", "مجموعة مُطابِقة")}` : tr("none", "لا شيء")}>
         {summary.length === 0 && (
           <div className="empty-state" style={{ padding: 30 }}>
-            No hooks configured. Hooks run commands on events like <code className="mono">PreToolUse</code>, <code className="mono">PreCompact</code>, <code className="mono">Stop</code>. Use “Edit raw JSON”.
+            {tr("No hooks configured. Hooks run commands on events like ", "لا توجد خطّافات مُعدّة. تُنفّذ الخطّافات أوامر عند أحداث مثل ")}<code className="mono">PreToolUse</code>, <code className="mono">PreCompact</code>, <code className="mono">Stop</code>{tr(". Use “Edit raw JSON”.", ". استخدم «تحرير JSON الخام».")}
           </div>
         )}
         {filtered.map((h, i) => (
-          <Row key={i} title={<span><b>{h.event}</b> &nbsp;<span className="mono" style={{ color: "var(--muted)" }}>{h.matcher}</span></span>} desc={`${h.cmds} hook(s)${h.types ? " · " + h.types : ""}`}>
+          <Row key={i} title={<span><b>{h.event}</b> &nbsp;<span className="mono" style={{ color: "var(--muted)" }}>{h.matcher}</span></span>} desc={`${h.cmds} ${tr("hook(s)", "خطّاف")}${h.types ? " · " + h.types : ""}`}>
             <span className="badge neutral">{h.event}</span>
           </Row>
         ))}
@@ -52,20 +54,20 @@ export function HooksPage() {
 
       {open && (
         <Modal
-          title="Edit hooks (raw JSON)"
+          title={tr("Edit hooks (raw JSON)", "تحرير الخطّافات (JSON خام)")}
           width={640}
           onClose={() => setOpen(false)}
           footer={
             <>
-              <button className="btn ghost" onClick={() => setOpen(false)}>Cancel</button>
+              <button className="btn ghost" onClick={() => setOpen(false)}>{tr("Cancel", "إلغاء")}</button>
               <button className="btn primary" onClick={() => {
                 try {
                   const parsed = JSON.parse(draft);
                   patch((s) => { s.hooks = parsed; });
-                  toast("Hooks applied to draft — Save to write", "info");
+                  toast(tr("Hooks applied to draft — Save to write", "طُبِّقت الخطّافات على المسودة — احفظ للكتابة"), "info");
                   setOpen(false);
-                } catch (e: any) { setErr("Invalid JSON: " + e.message); }
-              }}>Apply to draft</button>
+                } catch (e: any) { setErr(tr("Invalid JSON: ", "JSON غير صالح: ") + e.message); }
+              }}>{tr("Apply to draft", "تطبيق على المسودة")}</button>
             </>
           }
         >

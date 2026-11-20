@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useT } from "../lib/i18n";
 
 const CONFIRM_SECONDS = 30;
 
@@ -105,6 +106,7 @@ export function Chips({
   suggestions?: string[];
   onAdd?: (v: string) => void;
 }) {
+  const t = useT();
   const [adding, setAdding] = useState(false);
   const [text, setText] = useState("");
   const avail = (suggestions ?? []).filter((s) => !values.includes(s));
@@ -117,7 +119,7 @@ export function Chips({
         </span>
       ))}
       {onAdd && !adding && (
-        <span className="chip add" onClick={() => setAdding(true)}>+ add</span>
+        <span className="chip add" onClick={() => setAdding(true)}>+ {t("add", "إضافة")}</span>
       )}
       {onAdd && adding && (
         <span style={{ display: "inline-flex", gap: 4 }}>
@@ -129,9 +131,9 @@ export function Chips({
               onChange={(e) => { if (e.target.value) { onAdd(e.target.value); setAdding(false); } }}
               style={{ width: 160 }}
             >
-              <option value="">choose…</option>
+              <option value="">{t("choose…", "اختر…")}</option>
               {avail.map((s) => <option key={s} value={s}>{s}</option>)}
-              <option value="__custom__">custom…</option>
+              <option value="__custom__">{t("custom…", "مخصّص…")}</option>
             </select>
           ) : (
             <input
@@ -139,7 +141,7 @@ export function Chips({
               type="text"
               style={{ width: 160 }}
               value={text}
-              placeholder="value + Enter"
+              placeholder={t("value + Enter", "القيمة + Enter")}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && text.trim()) { onAdd(text.trim()); setText(""); setAdding(false); }
@@ -204,14 +206,15 @@ export function Pager({
   total?: number;
   unit?: string;
 }) {
+  const t = useT();
   if (pageCount <= 1 && !total) return null;
   return (
     <div className="pager">
-      <button className="btn ghost sm" disabled={page <= 0} onClick={() => onPage(page - 1)}>‹ Prev</button>
+      <button className="btn ghost sm" disabled={page <= 0} onClick={() => onPage(page - 1)}>‹ {t("Prev", "السابق")}</button>
       <span className="pginfo">
-        Page {page + 1} / {pageCount}{total !== undefined ? ` · ${total} ${unit ?? ""}` : ""}
+        {t("Page", "صفحة")} {page + 1} / {pageCount}{total !== undefined ? ` · ${total} ${unit ?? ""}` : ""}
       </span>
-      <button className="btn ghost sm" disabled={page >= pageCount - 1} onClick={() => onPage(page + 1)}>Next ›</button>
+      <button className="btn ghost sm" disabled={page >= pageCount - 1} onClick={() => onPage(page + 1)}>{t("Next", "التالي")} ›</button>
     </div>
   );
 }
@@ -223,6 +226,7 @@ function ConfirmDialog({
   danger?: boolean;
   onDone: (v: boolean) => void;
 }) {
+  const t = useT();
   const [left, setLeft] = useState(CONFIRM_SECONDS);
   const done = useRef(false);
   const finish = (v: boolean) => { if (!done.current) { done.current = true; onDone(v); } };
@@ -238,20 +242,20 @@ function ConfirmDialog({
   }, []);
   return (
     <Modal
-      title="Confirm"
+      title={t("Confirm", "تأكيد")}
       onClose={() => finish(false)}
       footer={
         <>
-          <button className="btn ghost" onClick={() => finish(false)}>Cancel</button>
+          <button className="btn ghost" onClick={() => finish(false)}>{t("Cancel", "إلغاء")}</button>
           <button className={danger ? "btn danger" : "btn primary"} onClick={() => finish(true)}>
-            Confirm ({left}s)
+            {t("Confirm", "تأكيد")} ({left}{t("s", "ث")})
           </button>
         </>
       }
     >
       <div style={{ fontSize: 13, lineHeight: 1.6 }}>{msg}</div>
       <div style={{ marginTop: 10, color: "var(--muted)", fontSize: 11.5 }}>
-        Auto-confirms in {left}s if you don’t choose.
+        {t("Auto-confirms in", "يُؤكَّد تلقائيًا خلال")} {left}{t("s", "ث")} {t("if you don’t choose.", "إن لم تختر.")}
       </div>
     </Modal>
   );

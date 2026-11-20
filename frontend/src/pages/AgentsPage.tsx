@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import { useStore } from "../lib/store";
 import type { Agent, Project } from "../lib/types";
 import { Chips, Modal, Pager, paginate, Select, useConfirm } from "../components/ui";
+import { useT } from "../lib/i18n";
 
 const LIST_PAGE = 12;
 
@@ -11,6 +12,7 @@ const blank = (): Agent => ({
 });
 
 export function AgentsPage() {
+  const t = useT();
   const { meta, toast } = useStore();
   const { confirm, node: confirmNode } = useConfirm();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -53,20 +55,20 @@ export function AgentsPage() {
     if (!draft || !draft.name.trim()) return;
     try {
       const r = await api.saveAgent(draft.name.trim(), draft, agentDir || undefined);
-      toast(`Agent "${draft.name}" saved`, "ok");
+      toast(t(`Agent "${draft.name}" saved`, `تم حفظ الوكيل "${draft.name}"`), "ok");
       await load(r.agent.name);
-    } catch (e: any) { toast("Save failed: " + e.message, "err"); }
+    } catch (e: any) { toast(t("Save failed: ", "فشل الحفظ: ") + e.message, "err"); }
   };
 
   const del = async () => {
     if (!current) return;
-    if (!(await confirm(`Delete agent "${current.name}"? A timestamped backup is written first, so this is recoverable.`, true))) return;
+    if (!(await confirm(t(`Delete agent "${current.name}"? A timestamped backup is written first, so this is recoverable.`, `حذف الوكيل "${current.name}"؟ تُكتب نسخة احتياطية مؤرّخة أولًا، لذا يمكن التراجع عن ذلك.`), true))) return;
     try {
       await api.deleteAgent(current.name, agentDir || undefined);
-      toast(`Agent "${current.name}" deleted (backed up)`, "ok");
+      toast(t(`Agent "${current.name}" deleted (backed up)`, `تم حذف الوكيل "${current.name}" (مع نسخة احتياطية)`), "ok");
       setSel(null); setDraft(null);
       await load();
-    } catch (e: any) { toast("Delete failed: " + e.message, "err"); }
+    } catch (e: any) { toast(t("Delete failed: ", "فشل الحذف: ") + e.message, "err"); }
   };
 
   const duplicate = () => {
@@ -78,11 +80,11 @@ export function AgentsPage() {
   return (
     <div className="main-inner" style={{ maxWidth: 1080 }}>
       <div className="page-head">
-        <h1>Agents</h1>
-        <p>Custom subagents in <code className="mono">.claude/agents/*.md</code>. Pick a project to manage its agents; each save is backed up.</p>
+        <h1>{t("Agents", "الوكلاء")}</h1>
+        <p>{t("Custom subagents in ", "وكلاء فرعيون مخصّصون في ")}<code className="mono">.claude/agents/*.md</code>{t(". Pick a project to manage its agents; each save is backed up.", ". اختر مشروعًا لإدارة وكلائه؛ تُحفظ نسخة احتياطية مع كل حفظ.")}</p>
       </div>
       <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
-        <span style={{ color: "var(--muted)", fontSize: 12 }}>Project:</span>
+        <span style={{ color: "var(--muted)", fontSize: 12 }}>{t("Project:", "المشروع:")}</span>
         <select className="scope-select" style={{ marginInlineStart: 0 }} value={agentDir} onChange={(e) => setAgentDir(e.target.value)}>
           {projects.map((p) => (
             <option key={p.id} value={p.isGlobal ? "" : p.agentDir}>
@@ -90,19 +92,19 @@ export function AgentsPage() {
             </option>
           ))}
         </select>
-        <span style={{ color: "var(--muted)", fontSize: 11.5 }}>{agents.length} agent(s) in this scope{agentDir ? " · creating here makes .claude/agents/ if missing" : ""}</span>
+        <span style={{ color: "var(--muted)", fontSize: 11.5 }}>{agents.length}{t(" agent(s) in this scope", " وكيل في هذا النطاق")}{agentDir ? t(" · creating here makes .claude/agents/ if missing", " · الإنشاء هنا يُنشئ .claude/agents/ إن لم يكن موجودًا") : ""}</span>
       </div>
 
       <div className="agent-layout">
         <div className="agent-list">
           <div className="search">
-            <input type="text" placeholder="Filter agents…" value={q} onChange={(e) => { setQ(e.target.value); setListPage(0); }} />
+            <input type="text" placeholder={t("Filter agents…", "تصفية الوكلاء…")} value={q} onChange={(e) => { setQ(e.target.value); setListPage(0); }} />
           </div>
           <div style={{ padding: 8, borderBottom: "1px solid var(--border)" }}>
-            <button className="btn sm" style={{ width: "100%" }} onClick={() => { setCreating(true); setNewName(""); }}>+ New agent</button>
+            <button className="btn sm" style={{ width: "100%" }} onClick={() => { setCreating(true); setNewName(""); }}>{t("+ New agent", "+ وكيل جديد")}</button>
           </div>
           <div className="items">
-            {loading && <div className="loading">Loading…</div>}
+            {loading && <div className="loading">{t("Loading…", "جارٍ التحميل…")}</div>}
             {pageAgents.map((a) => (
               <div key={a.name} className={"agent-item" + (sel === a.name ? " active" : "")} onClick={() => open(a)}>
                 <div className="nm">{a.name} {a.model && <span className="badge neutral">{a.model}</span>}</div>
@@ -115,44 +117,44 @@ export function AgentsPage() {
 
         <div>
           {!draft ? (
-            <div className="card"><div className="empty-state">Select an agent to edit, or create a new one.</div></div>
+            <div className="card"><div className="empty-state">{t("Select an agent to edit, or create a new one.", "اختر وكيلًا لتحريره، أو أنشئ وكيلًا جديدًا.")}</div></div>
           ) : (
             <div className="card">
               <header>
                 <h2 className="mono">{draft.name || "new-agent"}.md</h2>
                 <div style={{ marginInlineStart: "auto", display: "flex", gap: 8 }}>
-                  {current && <button className="btn ghost sm" onClick={duplicate}>Duplicate</button>}
-                  {current && <button className="btn danger sm" onClick={del}>Delete</button>}
-                  <button className="btn primary sm" disabled={!dirty || !draft.name.trim()} onClick={save}>Save</button>
+                  {current && <button className="btn ghost sm" onClick={duplicate}>{t("Duplicate", "نسخ")}</button>}
+                  {current && <button className="btn danger sm" onClick={del}>{t("Delete", "حذف")}</button>}
+                  <button className="btn primary sm" disabled={!dirty || !draft.name.trim()} onClick={save}>{t("Save", "حفظ")}</button>
                 </div>
               </header>
               <div className="body" style={{ padding: 16 }}>
                 <div className="field">
-                  <label>Description <span style={{ color: "var(--muted)", fontWeight: 400 }}>— this is what triggers the agent; be specific</span></label>
+                  <label>{t("Description", "الوصف")} <span style={{ color: "var(--muted)", fontWeight: 400 }}>{t("— this is what triggers the agent; be specific", "— هذا ما يُفعّل الوكيل؛ كن محدّدًا")}</span></label>
                   <textarea rows={3} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
                 </div>
                 <div className="form-grid">
                   <div className="field">
-                    <label>Model</label>
-                    <Select value={draft.model} options={meta?.models ?? []} allowEmpty="(inherit)" onChange={(v) => setDraft({ ...draft, model: v })} />
+                    <label>{t("Model", "النموذج")}</label>
+                    <Select value={draft.model} options={meta?.models ?? []} allowEmpty={t("(inherit)", "(موروث)")} onChange={(v) => setDraft({ ...draft, model: v })} />
                   </div>
                   <div className="field">
-                    <label>Effort</label>
-                    <Select value={draft.effort} options={meta?.efforts ?? []} allowEmpty="(inherit)" onChange={(v) => setDraft({ ...draft, effort: v })} />
+                    <label>{t("Effort", "مستوى الجهد")}</label>
+                    <Select value={draft.effort} options={meta?.efforts ?? []} allowEmpty={t("(inherit)", "(موروث)")} onChange={(v) => setDraft({ ...draft, effort: v })} />
                   </div>
                 </div>
                 <div className="field">
-                  <label>Tools</label>
+                  <label>{t("Tools", "الأدوات")}</label>
                   <Chips
                     values={draft.tools}
                     suggestions={meta?.toolNames ?? []}
                     onRemove={(t) => setDraft({ ...draft, tools: draft.tools.filter((x) => x !== t) })}
                     onAdd={(t) => setDraft({ ...draft, tools: draft.tools.includes(t) ? draft.tools : [...draft.tools, t] })}
                   />
-                  <div className="hint">Leave empty to inherit all tools. <code className="mono">*</code> also means all.</div>
+                  <div className="hint">{t("Leave empty to inherit all tools. ", "اترك الحقل فارغًا لوراثة جميع الأدوات. ")}<code className="mono">*</code>{t(" also means all.", " تعني أيضًا الكل.")}</div>
                 </div>
                 <div className="field">
-                  <label>System prompt (body)</label>
+                  <label>{t("System prompt (body)", "موجّه النظام (المتن)")}</label>
                   <textarea rows={12} value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} spellCheck={false} />
                 </div>
               </div>
@@ -163,11 +165,11 @@ export function AgentsPage() {
 
       {creating && (
         <Modal
-          title="New agent"
+          title={t("New agent", "وكيل جديد")}
           onClose={() => setCreating(false)}
           footer={
             <>
-              <button className="btn ghost" onClick={() => setCreating(false)}>Cancel</button>
+              <button className="btn ghost" onClick={() => setCreating(false)}>{t("Cancel", "إلغاء")}</button>
               <button
                 className="btn primary"
                 disabled={!/^[a-z0-9][a-z0-9_-]*$/.test(newName)}
@@ -177,14 +179,14 @@ export function AgentsPage() {
                   setSel(null);
                   setCreating(false);
                 }}
-              >Create</button>
+              >{t("Create", "إنشاء")}</button>
             </>
           }
         >
           <div className="field">
-            <label>Name</label>
+            <label>{t("Name", "الاسم")}</label>
             <input type="text" className="mono" autoFocus placeholder="my-agent" value={newName} onChange={(e) => setNewName(e.target.value.toLowerCase())} />
-            <div className="hint">Lowercase, digits, <code className="mono">-</code> / <code className="mono">_</code>. Becomes <code className="mono">{newName || "name"}.md</code>. Not saved until you hit Save.</div>
+            <div className="hint">{t("Lowercase, digits, ", "أحرف صغيرة وأرقام، ")}<code className="mono">-</code> / <code className="mono">_</code>{t(". Becomes ", ". يصبح ")}<code className="mono">{newName || "name"}.md</code>{t(". Not saved until you hit Save.", ". لا يُحفظ حتى تضغط على حفظ.")}</div>
           </div>
         </Modal>
       )}
