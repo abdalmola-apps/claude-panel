@@ -1,0 +1,18 @@
+# systemd USER service template for Claude Control.
+# Installed (with __APP_DIR__/__PORT__ filled in) to
+#   ~/.config/systemd/user/claude-control.service
+# by install.sh — do not edit the copied unit by hand; re-run install.sh.
+# Runs as your own user on loopback only; no root, no privileged port.
+[Unit]
+Description=Claude Control — local Claude Code config panel
+After=default.target
+
+[Service]
+Type=simple
+WorkingDirectory=__APP_DIR__
+ExecStart=__APP_DIR__/.venv/bin/uvicorn app:app --app-dir __APP_DIR__/backend --host 127.0.0.1 --port __PORT__
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
