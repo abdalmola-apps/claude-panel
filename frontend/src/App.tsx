@@ -29,7 +29,7 @@ export default function App() {
     sessions: t("Sessions", "الجلسات"),
     plugins: t("Plugins", "الإضافات"),
     skills: t("Skills", "المهارات"),
-    hooks: t("Hooks", "الخطّافات"),
+    hooks: t("Hooks", "المُشغّلات"),
     memory: t("Memory", "الذاكرة"),
   };
   const [section, setSection] = useState<Section>("settings");
