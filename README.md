@@ -3,18 +3,13 @@
 A local, Linear-style control panel for [Claude Code](https://claude.com/claude-code)
 configuration. Reads and writes the **real** files under `~/.claude` — nothing is
 mocked, every write is backed up first, and the whole thing binds to `127.0.0.1` only.
-**Bilingual** — English and clear Arabic with full RTL, one click.
 
 ![Ultra & Workflow — machine-aware tuning](docs/ultra-workflow.png)
-
-<p align="center"><img src="docs/ultra-workflow-ar.png" alt="الوضع الفائق وسير العمل — العربية (RTL)" width="100%"></p>
 
 Hooks ship with a gallery of ready-to-insert examples and an AI generator that
 drafts a hook from a plain-language description (via the local `claude` CLI):
 
 ![Hooks — example gallery & AI generator](docs/hooks.png)
-
-<p align="center"><img src="docs/hooks-ar.png" alt="المُشغّلات — معرض الأمثلة ومولّد الذكاء الاصطناعي (RTL)" width="100%"></p>
 
 ## Features
 
