@@ -58,7 +58,7 @@ export function Store({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<"dark" | "light">(
     () => (localStorage.getItem("cc.theme") as any) || "dark"
   );
-  const [lang, setLang] = useState<Lang>(() => (localStorage.getItem("cc.lang") as Lang) || "en");
+  const lang: Lang = "en"; // English-only; the Arabic language switch was removed
   const [autoApply, setAutoApply] = useState<boolean>(
     () => (localStorage.getItem("cc.autoApply") ?? "1") === "1"
   );
@@ -69,10 +69,9 @@ export function Store({ children }: { children: React.ReactNode }) {
     try { localStorage.setItem("cc.theme", theme); } catch { /**/ }
   }, [theme]);
   useEffect(() => {
-    document.documentElement.setAttribute("dir", lang === "ar" ? "rtl" : "ltr");
-    document.documentElement.setAttribute("lang", lang);
-    try { localStorage.setItem("cc.lang", lang); } catch { /**/ }
-  }, [lang]);
+    document.documentElement.setAttribute("dir", "ltr");
+    document.documentElement.setAttribute("lang", "en");
+  }, []);
   useEffect(() => {
     try { localStorage.setItem("cc.autoApply", autoApply ? "1" : "0"); } catch { /**/ }
   }, [autoApply]);
@@ -148,7 +147,7 @@ export function Store({ children }: { children: React.ReactNode }) {
     meta, scopes, scope, setScope, settings, original, dirty, loading, error,
     patch, reload, save, revert, toast, toasts,
     theme, toggleTheme: () => setTheme((t) => (t === "dark" ? "light" : "dark")),
-    lang, setLang, toggleLang: () => setLang((l) => (l === "ar" ? "en" : "ar")),
+    lang, setLang: () => {}, toggleLang: () => {},
     autoApply, toggleAutoApply: () => setAutoApply((a) => !a),
   };
 

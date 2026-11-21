@@ -2,7 +2,7 @@ import { useStore } from "../lib/store";
 import { useT } from "../lib/i18n";
 
 export function TopBar({ section, scoped, onOpenCmd }: { section: string; scoped: boolean; onOpenCmd: () => void }) {
-  const { dirty, save, revert, reload, theme, toggleTheme, lang, toggleLang, autoApply, toggleAutoApply, scopes, scope, setScope } = useStore();
+  const { dirty, save, revert, reload, theme, toggleTheme, autoApply, toggleAutoApply, scopes, scope, setScope } = useStore();
   const t = useT();
   return (
     <header className="topbar">
@@ -42,9 +42,6 @@ export function TopBar({ section, scoped, onOpenCmd }: { section: string; scoped
         {t("Auto", "تلقائي")} {autoApply ? "●" : "○"}
       </button>
       <button className="btn ghost icon" title={t("Reload from disk", "إعادة التحميل من القرص")} onClick={() => reload()}>⟳</button>
-      <button className="btn ghost icon" title={t("Switch to Arabic", "التبديل إلى الإنجليزية")} onClick={toggleLang}>
-        {lang === "ar" ? "EN" : "ع"}
-      </button>
       <button className="btn ghost icon" title={t("Toggle theme", "تبديل السمة")} onClick={toggleTheme}>
         {theme === "dark" ? "☾" : "☀"}
       </button>

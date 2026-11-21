@@ -19,7 +19,7 @@ import { MemoryPage } from "./pages/MemoryPage";
 type Section = "settings" | "permissions" | "agents" | "ultra" | "sessions" | "plugins" | "skills" | "hooks" | "memory";
 
 export default function App() {
-  const { settings, loading, error, toasts, dirty, save, revert, reload, toggleTheme, toggleLang, autoApply } = useStore();
+  const { settings, loading, error, toasts, dirty, save, revert, reload, toggleTheme, autoApply } = useStore();
   const t = useT();
   const TITLES: Record<Section, string> = {
     settings: t("Settings", "الإعدادات"),
@@ -71,7 +71,6 @@ export default function App() {
       { id: "revert", label: t("Revert unsaved changes", "التراجع عن التغييرات غير المحفوظة"), ico: "↺", run: revert },
       { id: "reload", label: t("Reload from disk", "إعادة التحميل من القرص"), ico: "⟳", run: () => reload() },
       { id: "theme", label: t("Toggle theme", "تبديل السمة"), ico: "◐", run: toggleTheme },
-      { id: "lang", label: t("Switch language · تبديل اللغة", "تبديل اللغة · Switch language"), ico: "⇄", run: toggleLang },
     ];
     const agentCmds: Command[] = agents.map((a) => ({
       id: "agent-" + a.name, label: t("Agent", "وكيل") + ": " + a.name, hint: a.model || "", ico: "◆",
@@ -79,7 +78,7 @@ export default function App() {
     }));
     return [...base, ...agentCmds];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agents, dirty, save, revert, reload, toggleTheme, toggleLang, t]);
+  }, [agents, dirty, save, revert, reload, toggleTheme, t]);
 
   if (loading) return <div className="loading" style={{ marginTop: "40vh" }}>{t("Loading ~/.claude …", "جارٍ تحميل ‎~/.claude …")}</div>;
   if (error)
