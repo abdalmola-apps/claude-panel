@@ -36,6 +36,19 @@ export function Sidebar({
       <div style={{ padding: "4px 10px", color: "var(--muted)", fontSize: 11, lineHeight: 1.6 }}>
         {t("Writes", "يكتب في")} <code className="mono">~/.claude</code> {t("directly · every change is backed up first.", "مباشرةً · تُؤخذ نسخة احتياطية قبل كل تغيير.")}
       </div>
+      <div className="nav-sep" />
+      <div style={{ padding: "6px 10px 10px", fontSize: 11, color: "var(--muted)", lineHeight: 1.7 }}>
+        {t("Powered by", "من تطوير")}{" "}
+        <a
+          href="https://github.com/abdalmola-apps/claude-panel"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="github.com/abdalmola-apps/claude-panel"
+          style={{ color: "var(--accent)", textDecoration: "none", fontWeight: 600 }}
+        >
+          Abdalmola ↗
+        </a>
+      </div>
     </aside>
   );
 }
