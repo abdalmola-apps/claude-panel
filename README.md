@@ -11,6 +11,16 @@ drafts a hook from a plain-language description (via the local `claude` CLI):
 
 ![Hooks — example gallery & AI generator](docs/hooks.png)
 
+**Team Pipeline** assembles your agent roster into a software team that runs a task
+end to end — **Plan → (Build ↔ Check loop, recycles until every check passes) →
+Sign-off** — and generates a real Claude Code *Workflow* you run from a session.
+Each role maps to a real teammate (or the default worker), roles **reorder** with
+the ↑/↓ arrows, and every saved workflow can be **re-opened and edited** — the
+builder round-trips losslessly via a sidecar, so a team is never write-once. Save
+as many distinct pipelines as you like (one file per name):
+
+![Team Pipeline — reorderable roles mapped to your agent roster](docs/team-pipeline.png)
+
 ## Features
 
 | Module | Backs | Covers |
@@ -18,6 +28,9 @@ drafts a hook from a plain-language description (via the local `claude` CLI):
 | **Settings** | `settings.json` | permission mode, model, effort, auto-compact (enable / window / % trigger), env vars, raw-JSON escape hatch. A **scope selector** switches between global `~/.claude/settings.json` and any project's `.claude/settings(.local).json` |
 | **Permissions** | `permissions` | allow / deny / ask lists — add, remove, move between lists, search |
 | **Agents** | `agents/*.md` | per-project subagents — browse, edit frontmatter (model, tools, effort) + body, create, duplicate, delete |
+| **Who's Working** | `projects/*/*.jsonl`, `ps` | live view of which agents are running now, the exact task and phase each is in, token/context use, with stop controls |
+| **Team Pipeline** | `workflows/*.js` | assemble agents into a Plan → Build↔Check → Sign-off team, map a teammate to each role, **reorder** roles, generate a real Workflow, and **edit** / re-open / delete any saved pipeline (lossless round-trip via a `.team.json` sidecar) |
+| **Self-hosted** | Managed Agents | setup wizard + worker controls for a self-hosted Anthropic sandbox |
 | **Ultra & Workflow** | `settings.json`, `env` | ultracode mode, dynamic-workflow fan-out (size guideline, usage warning, concurrency), subagent model/effort/limits, and **machine-aware tuning** — auto-detects CPU/RAM and recommends safe concurrency |
 | **Sessions** | `projects/*/*.jsonl` | recent sessions with the one *working now* flagged live; running processes; search; pagination |
 | **Plugins** | `settings.json`, marketplaces | enable/disable, install from a marketplace, add/remove marketplaces, search |

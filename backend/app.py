@@ -1035,6 +1035,25 @@ def list_workflows(claudeDir: str = ""):
     return {"workflows": out, "dir": str(wd)}
 
 
+@app.get("/api/workflows/read")
+def read_workflow(name: str = "", claudeDir: str = ""):
+    if not re.match(r"^[a-z0-9][a-z0-9_-]*$", name):
+        raise HTTPException(400, "invalid workflow name")
+    wd = _workflows_dir(claudeDir or "")
+    dest = wd / f"{name}.js"
+    if not dest.exists():
+        raise HTTPException(404, "workflow not found")
+    content = dest.read_text(encoding="utf-8", errors="ignore")
+    meta = None
+    side = wd / f"{name}.team.json"
+    if side.exists():
+        try:
+            meta = json.loads(side.read_text(encoding="utf-8"))
+        except Exception:
+            meta = None
+    return {"name": name, "content": content, "meta": meta}
+
+
 @app.post("/api/workflows/save")
 def save_workflow(payload: dict = Body(...)):
     import shutil
@@ -1053,6 +1072,16 @@ def save_workflow(payload: dict = Body(...)):
         backup = str(BACKUP_DIR / f"{name}.js.{int(datetime.now().timestamp())}.bak")
         shutil.copy2(dest, backup)
     dest.write_text(content, encoding="utf-8")
+    # Optional role-model sidecar so the builder can re-open this workflow losslessly.
+    meta = payload.get("meta")
+    if isinstance(meta, dict) and isinstance(meta.get("roles"), list):
+        blob = json.dumps(meta, ensure_ascii=False, indent=2)
+        if len(blob) <= 200_000:
+            side = wd / f"{name}.team.json"
+            if side.exists():
+                BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(side, BACKUP_DIR / f"{name}.team.json.{int(datetime.now().timestamp())}.bak")
+            side.write_text(blob, encoding="utf-8")
     return {"ok": True, "path": str(dest), "backup": backup}
 
 
@@ -1070,6 +1099,10 @@ def delete_workflow(payload: dict = Body(...)):
     backup = str(BACKUP_DIR / f"{name}.js.{int(datetime.now().timestamp())}.bak")
     shutil.copy2(dest, backup)
     dest.unlink()
+    side = wd / f"{name}.team.json"
+    if side.exists():
+        shutil.copy2(side, BACKUP_DIR / f"{name}.team.json.{int(datetime.now().timestamp())}.bak")
+        side.unlink()
     return {"ok": True, "backup": backup}
 
 

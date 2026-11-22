@@ -123,6 +123,14 @@ export function TeamPage() {
   const addRole = () =>
     setRoles((rs) => [...rs, { key: "custom-" + Date.now(), title: "New role", agent: "", instruction: "", enabled: true, type: "build" as RoleType }]);
   const removeRole = (i: number) => setRoles((rs) => rs.filter((_, j) => j !== i));
+  const moveRole = (i: number, dir: -1 | 1) =>
+    setRoles((rs) => {
+      const j = i + dir;
+      if (j < 0 || j >= rs.length) return rs;
+      const next = rs.slice();
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
 
   const missing = roles.filter((r) => r.enabled && (!r.agent || !agentNames.includes(r.agent)));
 
@@ -151,6 +159,28 @@ export function TeamPage() {
     catch (e: any) { toast("Delete failed: " + (e.message || e), "err"); }
   };
 
+  const openWf = async (wfName: string) => {
+    if (roles.some((r) => r.instruction !== (DEFAULT_ROLES.find((d) => d.key === r.key)?.instruction ?? r.instruction)) || task || script) {
+      if (!(await confirm(`Open “${wfName}” for editing? This replaces what's currently in the builder.`, false))) return;
+    }
+    try {
+      const r = await api.readWorkflow(wfName, proj || undefined);
+      const m = r.meta;
+      if (m && Array.isArray(m.roles)) {
+        setName(m.name || wfName);
+        setTask(m.task || "");
+        setMaxCycles(m.maxCycles || 3);
+        setRoles(m.roles.map((x: Role) => ({ ...x })));
+        setScript(r.content);
+        toast(`Opened “${wfName}” — edit the roles and Save to update it`, "ok");
+      } else {
+        setName(wfName);
+        setScript(r.content);
+        toast(`Opened “${wfName}” as raw script (no role model saved for it — the editor below is editable, but the Roles form wasn't restored)`, "ok");
+      }
+    } catch (e: any) { toast("Open failed: " + (e.message || e), "err"); }
+  };
+
   const generate = () => {
     if (!/^[a-z0-9][a-z0-9_-]*$/.test(name)) { toast("Name must be a lowercase slug", "err"); return; }
     setScript(buildWorkflow(name, task, maxCycles, roles));
@@ -158,9 +188,13 @@ export function TeamPage() {
 
   const save = async () => {
     if (!script) return;
+    if (!/^[a-z0-9][a-z0-9_-]*$/.test(name)) { toast("Name must be a lowercase slug", "err"); return; }
+    if (wfs.some((w) => w.name === name) &&
+        !(await confirm(`A workflow named “${name}” already exists here — saving will overwrite it (the previous version is backed up first). To keep both, give this one a different name.`, true))) return;
     setSaving(true);
     try {
-      const r = await api.saveWorkflow(name, script, proj || undefined);
+      const meta = { v: 1, name, task, maxCycles, roles };
+      const r = await api.saveWorkflow(name, script, proj || undefined, meta);
       toast(`Saved to ${r.path}${r.backup ? " (previous backed up)" : ""}`, "ok");
       loadWfs();
     } catch (e: any) { toast("Save failed: " + (e.message || e), "err"); }
@@ -189,7 +223,7 @@ export function TeamPage() {
             </select>
           </div>
           <div className="field">
-            <label>Workflow name</label>
+            <label>Workflow name <span style={{ color: "var(--muted)", fontWeight: 400 }}>— one file per name; rename to save a second team</span></label>
             <input className="input-sm mono" value={name} onChange={(e) => setName(e.target.value.toLowerCase())} placeholder="product-team" />
           </div>
         </div>
@@ -217,6 +251,10 @@ export function TeamPage() {
           return (
             <div key={r.key} style={{ padding: "12px 0", borderBottom: "1px solid var(--border)", opacity: r.enabled ? 1 : 0.5 }}>
               <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+                <span style={{ display: "inline-flex", flexDirection: "column", lineHeight: 0.8, flexShrink: 0 }}>
+                  <button className="btn ghost sm" style={{ padding: "0 5px", minWidth: 0, color: i === 0 ? "var(--border)" : "var(--muted)" }} disabled={i === 0} title="Move up" onClick={() => moveRole(i, -1)}>▲</button>
+                  <button className="btn ghost sm" style={{ padding: "0 5px", minWidth: 0, color: i === roles.length - 1 ? "var(--border)" : "var(--muted)" }} disabled={i === roles.length - 1} title="Move down" onClick={() => moveRole(i, 1)}>▼</button>
+                </span>
                 <input type="checkbox" checked={r.enabled} onChange={(e) => setRole(i, { enabled: e.target.checked })} title="Include this role in the pipeline" style={{ width: 15, height: 15, flexShrink: 0 }} />
                 <input className="input-sm" style={{ fontWeight: 600, width: 150 }} value={r.title} onChange={(e) => setRole(i, { title: e.target.value })} />
                 <select className="scope-select" style={{ marginInlineStart: 0, width: 108 }} value={r.type} onChange={(e) => setRole(i, { type: e.target.value as RoleType })} title={ROLE_TYPES.find((t) => t.value === r.type)?.hint}>
@@ -260,6 +298,7 @@ export function TeamPage() {
               <div className="mono" style={{ fontWeight: 600, fontSize: 13 }}>{w.name}</div>
               <div style={{ fontSize: 11.5, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={w.path}>{w.description || w.path}</div>
             </div>
+            <button className="btn ghost sm" title="Open this workflow back in the builder to edit it" onClick={() => openWf(w.name)}>Edit</button>
             <button
               className="btn ghost sm"
               title="Copy a prompt to run it in a Claude Code session"

@@ -81,8 +81,12 @@ export const api = {
     fetch("/api/workflows" + (claudeDir ? `?claudeDir=${encodeURIComponent(claudeDir)}` : "")).then(
       (r) => j<{ workflows: { name: string; path: string; description: string }[]; dir: string }>(r)
     ),
-  saveWorkflow: (name: string, content: string, claudeDir?: string) =>
-    fetch("/api/workflows/save", { method: "POST", headers: H, body: JSON.stringify({ name, content, claudeDir }) }).then(
+  readWorkflow: (name: string, claudeDir?: string) =>
+    fetch(`/api/workflows/read?name=${encodeURIComponent(name)}` + (claudeDir ? `&claudeDir=${encodeURIComponent(claudeDir)}` : "")).then(
+      (r) => j<{ name: string; content: string; meta: any | null }>(r)
+    ),
+  saveWorkflow: (name: string, content: string, claudeDir?: string, meta?: any) =>
+    fetch("/api/workflows/save", { method: "POST", headers: H, body: JSON.stringify({ name, content, claudeDir, meta }) }).then(
       (r) => j<{ ok: boolean; path: string; backup: string | null }>(r)
     ),
   deleteWorkflow: (name: string, claudeDir?: string) =>
