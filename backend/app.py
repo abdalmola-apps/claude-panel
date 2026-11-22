@@ -1006,6 +1006,57 @@ def sandbox_worker_stop():
 
 
 # --------------------------------------------------------------------------- #
+# workflows — save a generated Team pipeline to <project>/.claude/workflows
+# --------------------------------------------------------------------------- #
+def _workflows_dir(claude_dir: str) -> Path:
+    cd = Path(claude_dir or CLAUDE_DIR).expanduser().resolve()
+    if cd.name != ".claude":
+        raise HTTPException(400, "not a .claude directory")
+    if cd != CLAUDE_DIR and HOME not in cd.parents:
+        raise HTTPException(400, "refused: path is outside your home directory")
+    return cd / "workflows"
+
+
+@app.get("/api/workflows")
+def list_workflows(claudeDir: str = ""):
+    wd = _workflows_dir(claudeDir)
+    out = []
+    if wd.exists():
+        for f in sorted(wd.glob("*.js")):
+            desc = ""
+            try:
+                txt = f.read_text(encoding="utf-8", errors="ignore")
+                m = re.search(r"""description:\s*['"]([^'"]*)['"]""", txt)
+                if m:
+                    desc = m.group(1)
+            except Exception:
+                pass
+            out.append({"name": f.stem, "path": str(f), "description": desc})
+    return {"workflows": out, "dir": str(wd)}
+
+
+@app.post("/api/workflows/save")
+def save_workflow(payload: dict = Body(...)):
+    import shutil
+    name = (payload.get("name") or "").strip()
+    content = payload.get("content") or ""
+    if not re.match(r"^[a-z0-9][a-z0-9_-]*$", name):
+        raise HTTPException(400, "name must be a lowercase slug (letters, digits, - _)")
+    if "export const meta" not in content or len(content) > 400_000:
+        raise HTTPException(400, "content does not look like a workflow script")
+    wd = _workflows_dir(payload.get("claudeDir") or "")
+    wd.mkdir(parents=True, exist_ok=True)
+    dest = wd / f"{name}.js"
+    backup = None
+    if dest.exists():
+        BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+        backup = str(BACKUP_DIR / f"{name}.js.{int(datetime.now().timestamp())}.bak")
+        shutil.copy2(dest, backup)
+    dest.write_text(content, encoding="utf-8")
+    return {"ok": True, "path": str(dest), "backup": backup}
+
+
+# --------------------------------------------------------------------------- #
 # plugins: catalog + install + marketplace add
 # --------------------------------------------------------------------------- #
 @app.get("/api/plugins/catalog")

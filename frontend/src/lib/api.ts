@@ -77,6 +77,15 @@ export const api = {
       (r) => j<{ ok: boolean; pid?: number; signal?: string; note?: string }>(r)
     ),
 
+  listWorkflows: (claudeDir?: string) =>
+    fetch("/api/workflows" + (claudeDir ? `?claudeDir=${encodeURIComponent(claudeDir)}` : "")).then(
+      (r) => j<{ workflows: { name: string; path: string; description: string }[]; dir: string }>(r)
+    ),
+  saveWorkflow: (name: string, content: string, claudeDir?: string) =>
+    fetch("/api/workflows/save", { method: "POST", headers: H, body: JSON.stringify({ name, content, claudeDir }) }).then(
+      (r) => j<{ ok: boolean; path: string; backup: string | null }>(r)
+    ),
+
   sandboxStatus: () => fetch("/api/sandbox/status").then((r) => j<SandboxStatus>(r)),
   sandboxStats: () => fetch("/api/sandbox/stats").then((r) => j<SandboxStats>(r)),
   sandboxWorkerStart: (workdir: string) =>
