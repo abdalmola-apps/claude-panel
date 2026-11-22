@@ -1,4 +1,4 @@
-import type { Agent, CatalogEntry, CliResult, MemoryGroup, Meta, Project, RunningProc, Scope, Session, Settings, Skill, SystemInfo, Worker } from "./types";
+import type { Agent, CatalogEntry, CliResult, MemoryGroup, Meta, Project, RunningProc, SandboxStats, SandboxStatus, Scope, Session, Settings, Skill, SystemInfo, Worker } from "./types";
 
 async function j<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -75,6 +75,17 @@ export const api = {
   stopSession: (pid: number | string) =>
     fetch("/api/sessions/stop", { method: "POST", headers: H, body: JSON.stringify({ pid }) }).then(
       (r) => j<{ ok: boolean; pid?: number; signal?: string; note?: string }>(r)
+    ),
+
+  sandboxStatus: () => fetch("/api/sandbox/status").then((r) => j<SandboxStatus>(r)),
+  sandboxStats: () => fetch("/api/sandbox/stats").then((r) => j<SandboxStats>(r)),
+  sandboxWorkerStart: (workdir: string) =>
+    fetch("/api/sandbox/worker/start", { method: "POST", headers: H, body: JSON.stringify({ workdir }) }).then(
+      (r) => j<{ ok: boolean; pid?: number; workdir?: string; log?: string; note?: string; pids?: number[] }>(r)
+    ),
+  sandboxWorkerStop: () =>
+    fetch("/api/sandbox/worker/stop", { method: "POST", headers: H, body: JSON.stringify({}) }).then(
+      (r) => j<{ ok: boolean; stopped?: number[]; note?: string }>(r)
     ),
 
   pluginCatalog: () => fetch("/api/plugins/catalog").then((r) => j<{ catalog: CatalogEntry[] }>(r)),

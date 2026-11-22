@@ -11,13 +11,14 @@ import { PermissionsPage } from "./pages/PermissionsPage";
 import { AgentsPage } from "./pages/AgentsPage";
 import { ActivityPage } from "./pages/ActivityPage";
 import { UltraPage } from "./pages/UltraPage";
+import { SandboxPage } from "./pages/SandboxPage";
 import { PluginsPage } from "./pages/PluginsPage";
 import { SessionsPage } from "./pages/SessionsPage";
 import { SkillsPage } from "./pages/SkillsPage";
 import { HooksPage } from "./pages/HooksPage";
 import { MemoryPage } from "./pages/MemoryPage";
 
-type Section = "settings" | "permissions" | "agents" | "activity" | "ultra" | "sessions" | "plugins" | "skills" | "hooks" | "memory";
+type Section = "settings" | "permissions" | "agents" | "activity" | "ultra" | "sandbox" | "sessions" | "plugins" | "skills" | "hooks" | "memory";
 
 export default function App() {
   const { settings, loading, error, toasts, dirty, save, revert, reload, toggleTheme, autoApply } = useStore();
@@ -28,6 +29,7 @@ export default function App() {
     agents: t("Agents", "الوكلاء"),
     activity: t("Who's Working", "مَن يعمل الآن"),
     ultra: t("Ultra & Workflow", "الوضع الفائق وسير العمل"),
+    sandbox: t("Self-hosted", "الصناديق الذاتية"),
     sessions: t("Sessions", "الجلسات"),
     plugins: t("Plugins", "الإضافات"),
     skills: t("Skills", "المهارات"),
@@ -58,6 +60,7 @@ export default function App() {
     { id: "agents", label: TITLES.agents, ico: "◆", count: agents.length },
     { id: "activity", label: TITLES.activity, ico: "◉" },
     { id: "ultra", label: TITLES.ultra, ico: "⋔" },
+    { id: "sandbox", label: TITLES.sandbox, ico: "▣" },
     { id: "sessions", label: TITLES.sessions, ico: "⧗" },
     { id: "plugins", label: TITLES.plugins, ico: "⧉" },
     { id: "skills", label: TITLES.skills, ico: "✦" },
@@ -68,7 +71,7 @@ export default function App() {
   const commands: Command[] = useMemo(() => {
     const go = (s: Section): Command[] => [{ id: "go-" + s, label: t("Go to", "الانتقال إلى") + " " + TITLES[s], ico: "→", run: () => setSection(s) }];
     const base: Command[] = [
-      ...go("settings"), ...go("permissions"), ...go("agents"), ...go("activity"), ...go("ultra"), ...go("sessions"),
+      ...go("settings"), ...go("permissions"), ...go("agents"), ...go("activity"), ...go("ultra"), ...go("sandbox"), ...go("sessions"),
       ...go("plugins"), ...go("skills"), ...go("hooks"), ...go("memory"),
       { id: "save", label: t("Save changes", "حفظ التغييرات"), hint: "⌘S", ico: "✓", run: () => dirty && save().catch(() => {}) },
       { id: "revert", label: t("Revert unsaved changes", "التراجع عن التغييرات غير المحفوظة"), ico: "↺", run: revert },
@@ -106,6 +109,7 @@ export default function App() {
         {section === "agents" && <AgentsPage />}
         {section === "activity" && <ActivityPage />}
         {section === "ultra" && <UltraPage />}
+        {section === "sandbox" && <SandboxPage />}
         {section === "sessions" && <SessionsPage />}
         {section === "plugins" && <PluginsPage />}
         {section === "skills" && <SkillsPage />}

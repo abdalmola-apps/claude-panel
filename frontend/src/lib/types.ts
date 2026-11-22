@@ -152,6 +152,31 @@ export interface SystemInfo {
   detail: { logical: number; totalGB: number; wfCpu: number; wfRam: number; subCpu: number; subRam: number };
 }
 
+export interface SandboxStatus {
+  antInstalled: boolean;
+  antVersion: string | null;
+  apiKey: boolean;
+  envId: string;
+  envKey: boolean;
+  workerRunning: boolean;
+  workerPids: number[];
+  os: string;
+  defaultWorkdir: string;
+  installCmd: string;
+  installNote: string;
+  docsUrl: string;
+  logPath: string;
+}
+
+export interface SandboxStats {
+  configured: boolean;
+  reason?: string;
+  ok?: boolean;
+  error?: string;
+  workersPolling?: number;
+  raw?: any;
+}
+
 export interface Meta {
   claudeVersion: string;
   models: string[];

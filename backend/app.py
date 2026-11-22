@@ -859,6 +859,153 @@ def stop_session(payload: dict = Body(...)):
 
 
 # --------------------------------------------------------------------------- #
+# self-hosted sandboxes (Managed Agents) — local readiness + worker control
+# --------------------------------------------------------------------------- #
+_SANDBOX_LOG = CLAUDE_DIR / ".claude-control-sandbox-worker.log"
+
+
+def _ant_version():
+    """Version of the Anthropic `ant` CLI, or None. Rejects Apache Ant (same name)."""
+    try:
+        r = subprocess.run(["ant", "--version"], capture_output=True, text=True, timeout=5)
+    except Exception:
+        return None
+    out = ((r.stdout or "") + (r.stderr or "")).strip()
+    if "Apache Ant" in out:
+        return None  # the Java build tool, not Anthropic's CLI
+    if r.returncode == 0 and out:
+        return out.splitlines()[0][:80]
+    return None
+
+
+def _sandbox_worker_pids():
+    pids = []
+    try:
+        out = subprocess.run(["ps", "-eo", "pid=,args="], capture_output=True, text=True, timeout=5).stdout
+    except Exception:
+        return pids
+    for line in out.splitlines():
+        parts = line.strip().split(None, 1)
+        if len(parts) < 2:
+            continue
+        pid, args = parts
+        if "beta:worker" in args and ("ant" in args.split()[0] or "/ant " in args or args.strip().startswith("ant ")):
+            if pid.isdigit():
+                pids.append(int(pid))
+    return pids
+
+
+def _anthropic_get(path: str):
+    """GET the Managed Agents API with the user's key. Never returns the key."""
+    import urllib.request
+    import urllib.error
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        return None, "no ANTHROPIC_API_KEY"
+    req = urllib.request.Request(
+        "https://api.anthropic.com" + path,
+        headers={
+            "x-api-key": key,
+            "anthropic-version": "2026-10-21",
+            "anthropic-beta": "managed-agents-2026-04-01",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return json.loads(r.read().decode("utf-8")), None
+    except urllib.error.HTTPError as e:
+        try:
+            body = e.read().decode("utf-8")[:300]
+        except Exception:
+            body = ""
+        return None, f"HTTP {e.code}: {body}"
+    except Exception as e:
+        return None, str(e)
+
+
+@app.get("/api/sandbox/status")
+def sandbox_status():
+    import platform
+    ant = _ant_version()
+    worker_pids = _sandbox_worker_pids()
+    system = platform.system()
+    return {
+        "antInstalled": ant is not None,
+        "antVersion": ant,
+        "apiKey": bool(os.environ.get("ANTHROPIC_API_KEY")),          # presence only
+        "envId": os.environ.get("ANTHROPIC_ENVIRONMENT_ID", ""),      # an id, not a secret
+        "envKey": bool(os.environ.get("ANTHROPIC_ENVIRONMENT_KEY")),  # presence only
+        "workerRunning": len(worker_pids) > 0,
+        "workerPids": worker_pids,
+        "os": system,
+        "defaultWorkdir": "/workspace" if system == "Linux" else os.path.expanduser("~/workspace"),
+        "installCmd": "go install github.com/anthropics/anthropic-cli/v2/cmd/ant@latest",
+        "installNote": "needs Go 1.26.10+; macOS: brew install anthropics/tap/ant. See the docs for the curl method.",
+        "docsUrl": "https://platform.claude.com/docs/en/managed-agents/self-hosted-sandboxes",
+        "logPath": str(_SANDBOX_LOG),
+    }
+
+
+@app.get("/api/sandbox/stats")
+def sandbox_stats():
+    env_id = os.environ.get("ANTHROPIC_ENVIRONMENT_ID", "").strip()
+    if not re.match(r"^env_[A-Za-z0-9_-]+$", env_id):
+        return {"configured": False, "reason": "set ANTHROPIC_ENVIRONMENT_ID (env_…) to read health"}
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        return {"configured": False, "reason": "set ANTHROPIC_API_KEY to read health"}
+    data, err = _anthropic_get(f"/v1/environments/{env_id}/work/stats")
+    if err:
+        return {"configured": True, "ok": False, "error": err}
+    return {"configured": True, "ok": True,
+            "workersPolling": data.get("workers_polling", 0), "raw": data}
+
+
+@app.post("/api/sandbox/worker/start")
+def sandbox_worker_start(payload: dict = Body(...)):
+    if not _ant_version():
+        raise HTTPException(400, "the Anthropic `ant` CLI is not installed")
+    workdir = (payload.get("workdir") or "/workspace").strip()
+    if not re.match(r"^[A-Za-z0-9_./~ -]{1,256}$", workdir):
+        raise HTTPException(400, "invalid workdir")
+    workdir = os.path.expanduser(workdir)
+    if _sandbox_worker_pids():
+        return {"ok": True, "note": "a worker is already running", "pids": _sandbox_worker_pids()}
+    if not os.environ.get("ANTHROPIC_ENVIRONMENT_KEY"):
+        raise HTTPException(400, "ANTHROPIC_ENVIRONMENT_KEY is not set in the panel's environment — the worker needs it to authenticate")
+    try:
+        os.makedirs(workdir, exist_ok=True)
+    except Exception as e:
+        raise HTTPException(400, f"cannot create workdir {workdir}: {e}")
+    try:
+        lf = open(_SANDBOX_LOG, "ab")
+        p = subprocess.Popen(
+            ["ant", "beta:worker", "poll", "--workdir", workdir],
+            stdout=lf, stderr=lf, stdin=subprocess.DEVNULL, start_new_session=True,
+        )
+    except FileNotFoundError:
+        raise HTTPException(400, "the Anthropic `ant` CLI is not installed")
+    except Exception as e:
+        raise HTTPException(500, f"could not start worker: {e}")
+    return {"ok": True, "pid": p.pid, "workdir": workdir, "log": str(_SANDBOX_LOG)}
+
+
+@app.post("/api/sandbox/worker/stop")
+def sandbox_worker_stop():
+    pids = _sandbox_worker_pids()
+    if not pids:
+        return {"ok": True, "note": "no worker running"}
+    import signal
+    stopped = []
+    for pid in pids:
+        try:
+            os.kill(int(pid), signal.SIGTERM)
+            stopped.append(pid)
+        except Exception:
+            pass
+    return {"ok": True, "stopped": stopped}
+
+
+# --------------------------------------------------------------------------- #
 # plugins: catalog + install + marketplace add
 # --------------------------------------------------------------------------- #
 @app.get("/api/plugins/catalog")
