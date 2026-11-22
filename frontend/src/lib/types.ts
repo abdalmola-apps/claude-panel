@@ -81,6 +81,25 @@ export interface RunningProc {
   encoded: string;
 }
 
+export interface Worker {
+  pid: number | string;
+  cwd: string;
+  project: string;
+  uptimeSec: number;
+  sessionId: string;
+  firstTask: string;
+  ageSec: number;
+  status: "working" | "idle" | "stale" | string;
+  phase: string;
+  currentTask: string;
+  lastText: string;
+  lastTool: string;
+  recentTools: string[];
+  model: string;
+  tokensIn: number;
+  tokensOut: number;
+}
+
 export interface CatalogEntry {
   marketplace: string;
   sourceType: string;

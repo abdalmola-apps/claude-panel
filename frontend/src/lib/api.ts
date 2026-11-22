@@ -1,4 +1,4 @@
-import type { Agent, CatalogEntry, CliResult, MemoryGroup, Meta, Project, RunningProc, Scope, Session, Settings, Skill, SystemInfo } from "./types";
+import type { Agent, CatalogEntry, CliResult, MemoryGroup, Meta, Project, RunningProc, Scope, Session, Settings, Skill, SystemInfo, Worker } from "./types";
 
 async function j<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -69,6 +69,12 @@ export const api = {
   sessions: (offset = 0, limit = 20) =>
     fetch(`/api/sessions?offset=${offset}&limit=${limit}`).then(
       (r) => j<{ sessions: Session[]; running: RunningProc[]; total: number; offset: number; limit: number; workingTotal: number }>(r)
+    ),
+
+  activity: () => fetch("/api/activity").then((r) => j<{ workers: Worker[]; count: number; now: string }>(r)),
+  stopSession: (pid: number | string) =>
+    fetch("/api/sessions/stop", { method: "POST", headers: H, body: JSON.stringify({ pid }) }).then(
+      (r) => j<{ ok: boolean; pid?: number; signal?: string; note?: string }>(r)
     ),
 
   pluginCatalog: () => fetch("/api/plugins/catalog").then((r) => j<{ catalog: CatalogEntry[] }>(r)),

@@ -694,6 +694,171 @@ def get_sessions(limit: int = 20, offset: int = 0):
 
 
 # --------------------------------------------------------------------------- #
+# activity — "who is working now", live per-session, with a stop control
+# --------------------------------------------------------------------------- #
+_TOOL_PHASE = {
+    "Edit": "Implementing", "Write": "Implementing", "NotebookEdit": "Implementing",
+    "MultiEdit": "Implementing",
+    "Bash": "Running / testing",
+    "Read": "Exploring", "Grep": "Exploring", "Glob": "Exploring", "LS": "Exploring",
+    "WebFetch": "Researching", "WebSearch": "Researching",
+    "Task": "Delegating", "Agent": "Delegating",
+}
+
+
+def _content_text(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        for c in content:
+            if isinstance(c, dict) and c.get("type") == "text":
+                return c.get("text", "")
+            if isinstance(c, str):
+                return c
+    return ""
+
+
+def _tail_lines(path: Path, max_bytes: int = 256 * 1024) -> list[str]:
+    try:
+        size = path.stat().st_size
+        with path.open("rb") as f:
+            if size > max_bytes:
+                f.seek(size - max_bytes)
+                f.readline()  # drop the partial first line
+            data = f.read()
+        return data.decode("utf-8", "ignore").splitlines()
+    except Exception:
+        return []
+
+
+def _session_activity(path: Path) -> dict:
+    """Extract the live picture from the tail of a session transcript."""
+    last_user = ""
+    last_text = ""
+    recent_tools: list[str] = []
+    model = ""
+    tin = tout = 0
+    for ln in _tail_lines(path):
+        try:
+            obj = json.loads(ln)
+        except Exception:
+            continue
+        typ = obj.get("type")
+        msg = obj.get("message") or {}
+        role = msg.get("role")
+        content = msg.get("content")
+        if typ == "user" or role == "user":
+            t = _content_text(content).strip()
+            if t and not t.startswith("<") and "caveat" not in t.lower()[:30]:
+                last_user = t[:240]
+        elif typ == "assistant" or role == "assistant":
+            if msg.get("model"):
+                model = msg["model"]
+            usage = msg.get("usage") or {}
+            if usage:
+                full_in = (usage.get("input_tokens", 0)
+                           + usage.get("cache_read_input_tokens", 0)
+                           + usage.get("cache_creation_input_tokens", 0))
+                if full_in:
+                    tin = full_in           # last turn's real context footprint
+                tout += usage.get("output_tokens", 0)  # cumulative output over the tail
+            if isinstance(content, list):
+                for c in content:
+                    if not isinstance(c, dict):
+                        continue
+                    if c.get("type") == "tool_use":
+                        recent_tools.append(c.get("name", ""))
+                    elif c.get("type") == "text" and c.get("text", "").strip():
+                        last_text = c["text"].strip()[:240]
+    recent_tools = [t for t in recent_tools if t][-14:]
+    counts: dict[str, int] = {}
+    for t in recent_tools[-6:]:
+        p = _TOOL_PHASE.get(t)
+        if p:
+            counts[p] = counts.get(p, 0) + 1
+    phase = max(counts, key=counts.get) if counts else "Thinking"
+    return {
+        "currentTask": last_user,
+        "lastText": last_text,
+        "lastTool": recent_tools[-1] if recent_tools else "",
+        "recentTools": recent_tools,
+        "phase": phase,
+        "model": model,
+        "tokensIn": tin,
+        "tokensOut": tout,
+    }
+
+
+@app.get("/api/activity")
+def get_activity():
+    now = datetime.now().timestamp()
+    running = _running_claude()
+    by_dir = {p["encoded"]: p for p in running if p["encoded"]}
+    newest: dict[str, tuple[float, Path]] = {}
+    if PROJECTS_DIR.exists():
+        for jf in PROJECTS_DIR.glob("*/*.jsonl"):
+            d = jf.parent.name
+            if d not in by_dir:
+                continue
+            try:
+                mt = jf.stat().st_mtime
+            except Exception:
+                continue
+            if d not in newest or mt > newest[d][0]:
+                newest[d] = (mt, jf)
+    workers = []
+    for d, (mt, jf) in newest.items():
+        proc = by_dir[d]
+        act = _session_activity(jf)
+        age = int(now - mt)
+        status = "working" if age < 45 else ("idle" if age < 900 else "stale")
+        phase = "Idle" if status != "working" else act["phase"]
+        workers.append({
+            "pid": proc["pid"],
+            "cwd": proc["cwd"],
+            "project": _decode_cwd(d),
+            "uptimeSec": proc["uptimeSec"],
+            "sessionId": jf.stem,
+            "firstTask": _session_title(jf),
+            "ageSec": age,
+            "status": status,
+            "phase": phase,
+            "currentTask": act["currentTask"],
+            "lastText": act["lastText"],
+            "lastTool": act["lastTool"],
+            "recentTools": act["recentTools"],
+            "model": act["model"],
+            "tokensIn": act["tokensIn"],
+            "tokensOut": act["tokensOut"],
+        })
+    workers.sort(key=lambda w: w["ageSec"])
+    return {"workers": workers, "count": len(workers),
+            "now": datetime.now().isoformat(timespec="seconds")}
+
+
+@app.post("/api/sessions/stop")
+def stop_session(payload: dict = Body(...)):
+    try:
+        pid = int(payload.get("pid"))
+    except Exception:
+        raise HTTPException(400, "pid must be an integer")
+    # Safety: only ever signal a PID that is a live Claude session right now.
+    valid = {p["pid"] for p in _running_claude()}
+    if pid not in valid:
+        raise HTTPException(404, "no live Claude session with that pid (it may have already exited)")
+    import signal
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return {"ok": True, "pid": pid, "note": "already exited"}
+    except PermissionError:
+        raise HTTPException(403, "not permitted to signal that process")
+    except Exception as e:
+        raise HTTPException(500, f"could not stop: {e}")
+    return {"ok": True, "pid": pid, "signal": "SIGTERM"}
+
+
+# --------------------------------------------------------------------------- #
 # plugins: catalog + install + marketplace add
 # --------------------------------------------------------------------------- #
 @app.get("/api/plugins/catalog")
