@@ -1056,6 +1056,23 @@ def save_workflow(payload: dict = Body(...)):
     return {"ok": True, "path": str(dest), "backup": backup}
 
 
+@app.post("/api/workflows/delete")
+def delete_workflow(payload: dict = Body(...)):
+    import shutil
+    name = (payload.get("name") or "").strip()
+    if not re.match(r"^[a-z0-9][a-z0-9_-]*$", name):
+        raise HTTPException(400, "invalid workflow name")
+    wd = _workflows_dir(payload.get("claudeDir") or "")
+    dest = wd / f"{name}.js"
+    if not dest.exists():
+        raise HTTPException(404, "workflow not found")
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    backup = str(BACKUP_DIR / f"{name}.js.{int(datetime.now().timestamp())}.bak")
+    shutil.copy2(dest, backup)
+    dest.unlink()
+    return {"ok": True, "backup": backup}
+
+
 # --------------------------------------------------------------------------- #
 # plugins: catalog + install + marketplace add
 # --------------------------------------------------------------------------- #
@@ -1268,6 +1285,92 @@ def hooks_generate(payload: dict = Body(...)):
                     "or rephrase your request.", raw, stderr)
     reason, message = _classify_claude_error(r.stderr or "", r.stdout or "")
     return fail(reason, message, raw, stderr)
+
+
+# --------------------------------------------------------------------------- #
+# agents — AI generator (for Team roles with no teammate yet)
+# --------------------------------------------------------------------------- #
+_AGENT_PROMPT = (
+    "You write ONE Claude Code subagent definition and nothing else.\n"
+    "Output ONLY a compact JSON object (no prose, no markdown fences) with keys:\n"
+    "  name        lowercase-slug handle, e.g. \"business-analyst\"\n"
+    "  description  one or two sentences: what it does and WHEN to use it (this is "
+    "what triggers the agent — be specific and action-oriented)\n"
+    "  tools        array of tool names it needs (subset of Read, Edit, Write, Grep, "
+    "Glob, Bash, WebSearch, WebFetch), or [] to inherit all\n"
+    "  model        one of fable, opus, sonnet, haiku, or \"\" to inherit\n"
+    "  effort       low, medium, high, or \"\" to inherit\n"
+    "  body         the system prompt — a few focused markdown paragraphs telling the "
+    "agent how to do its job well.\n"
+    "Role to design the agent for: "
+)
+_MODELS_OK = {"fable", "opus", "sonnet", "haiku", ""}
+_EFFORT_OK = {"low", "medium", "high", "xhigh", "max", ""}
+
+
+def _extract_agent_json(text: str):
+    t = (text or "").strip()
+    if t.startswith("```"):
+        parts = t.split("```")
+        if len(parts) >= 2:
+            t = parts[1]
+            if t.lstrip().lower().startswith("json"):
+                t = t.lstrip()[4:]
+    i, j = t.find("{"), t.rfind("}")
+    if i == -1 or j == -1 or j < i:
+        return None
+    try:
+        obj = json.loads(t[i:j + 1])
+    except Exception:
+        return None
+    if not isinstance(obj, dict):
+        return None
+    name = re.sub(r"[^a-z0-9_-]", "-", str(obj.get("name", "")).lower()).strip("-")
+    if not name or not str(obj.get("body", "")).strip():
+        return None
+    tools = obj.get("tools") if isinstance(obj.get("tools"), list) else []
+    model = str(obj.get("model", "") or "")
+    effort = str(obj.get("effort", "") or "")
+    return {
+        "name": name,
+        "description": str(obj.get("description", ""))[:600],
+        "tools": [str(t) for t in tools][:20],
+        "model": model if model in _MODELS_OK else "",
+        "effort": effort if effort in _EFFORT_OK else "",
+        "body": str(obj.get("body", ""))[:10000],
+    }
+
+
+@app.post("/api/agents/generate")
+def agents_generate(payload: dict = Body(...)):
+    role = (payload.get("role") or "").strip()
+    if not role:
+        raise HTTPException(400, "role required")
+    hint = (payload.get("hint") or "").strip()
+    model = (payload.get("model") or "haiku").strip()
+    if not re.match(r"^[A-Za-z0-9._-]+$", model):
+        raise HTTPException(400, "invalid model")
+    prompt = _AGENT_PROMPT + role[:200] + (("\nContext: " + hint[:600]) if hint else "")
+
+    def fail(reason, message, raw=""):
+        return {"ok": False, "reason": reason, "message": message, "agent": None, "raw": raw}
+
+    try:
+        r = subprocess.run(["claude", "-p", prompt, "--model", model],
+                           capture_output=True, text=True, timeout=120)
+    except FileNotFoundError:
+        return fail("not_installed", "The `claude` CLI isn’t installed on this machine.")
+    except subprocess.TimeoutExpired:
+        return fail("timeout", "Generation timed out. Try again.")
+    except Exception as e:
+        return fail("error", f"Could not run the claude CLI: {e}")
+    obj = _extract_agent_json(r.stdout or "")
+    if obj is not None:
+        return {"ok": True, "agent": obj}
+    if r.returncode == 0:
+        return fail("parse_failed", "claude ran but didn’t return a usable agent.", (r.stdout or "").strip()[-2000:])
+    reason, message = _classify_claude_error(r.stderr or "", r.stdout or "")
+    return fail(reason, message, (r.stdout or "").strip()[-2000:])
 
 
 # --------------------------------------------------------------------------- #

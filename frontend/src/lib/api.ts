@@ -85,6 +85,14 @@ export const api = {
     fetch("/api/workflows/save", { method: "POST", headers: H, body: JSON.stringify({ name, content, claudeDir }) }).then(
       (r) => j<{ ok: boolean; path: string; backup: string | null }>(r)
     ),
+  deleteWorkflow: (name: string, claudeDir?: string) =>
+    fetch("/api/workflows/delete", { method: "POST", headers: H, body: JSON.stringify({ name, claudeDir }) }).then(
+      (r) => j<{ ok: boolean; backup: string | null }>(r)
+    ),
+  generateAgent: (role: string, hint?: string) =>
+    fetch("/api/agents/generate", { method: "POST", headers: H, body: JSON.stringify({ role, hint }) }).then(
+      (r) => j<{ ok: boolean; reason?: string; message?: string; agent: { name: string; description: string; tools: string[]; model: string; effort: string; body: string } | null; raw?: string }>(r)
+    ),
 
   sandboxStatus: () => fetch("/api/sandbox/status").then((r) => j<SandboxStatus>(r)),
   sandboxStats: () => fetch("/api/sandbox/stats").then((r) => j<SandboxStats>(r)),

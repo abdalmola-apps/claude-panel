@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
 import { useStore } from "../lib/store";
-import { Card, Select } from "../components/ui";
+import { Card, Select, useConfirm } from "../components/ui";
 import type { Agent, Project } from "../lib/types";
 
 interface Role { key: string; title: string; agent: string; instruction: string; }
@@ -101,15 +101,50 @@ export function TeamPage() {
   const [roles, setRoles] = useState<Role[]>(DEFAULT_ROLES.map((r) => ({ ...r })));
   const [script, setScript] = useState("");
   const [saving, setSaving] = useState(false);
+  const [genRole, setGenRole] = useState<string | null>(null);
+  const [wfs, setWfs] = useState<{ name: string; description: string; path: string }[]>([]);
+  const { confirm, node: confirmNode } = useConfirm();
 
   useEffect(() => { api.projects().then((r) => setProjects(r.projects)).catch(() => {}); }, []);
   useEffect(() => { api.listAgents().then((r) => setAgents(r.agents)).catch(() => {}); }, []);
+
+  const loadWfs = useCallback(async () => {
+    try { const r = await api.listWorkflows(proj || undefined); setWfs(r.workflows); } catch { setWfs([]); }
+  }, [proj]);
+  useEffect(() => { loadWfs(); }, [loadWfs]);
 
   const agentNames = useMemo(() => agents.map((a) => a.name), [agents]);
   const current = projects.find((p) => (p.isGlobal ? proj === "" : p.claudeDir === proj));
 
   const setRole = (i: number, patch: Partial<Role>) =>
     setRoles((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+
+  const missing = roles.filter((r) => !r.agent || !agentNames.includes(r.agent));
+
+  const genAgent = async (i: number) => {
+    const r = roles[i];
+    setGenRole(r.key);
+    try {
+      const res = await api.generateAgent(r.title, r.instruction);
+      if (!res.ok || !res.agent) { toast(res.message || "Generation failed", "err"); return; }
+      await api.saveAgent(res.agent.name, res.agent);           // into the global roster
+      const list = await api.listAgents(); setAgents(list.agents);
+      setRole(i, { agent: res.agent.name });
+      toast(`Generated teammate “${res.agent.name}” and assigned to ${r.title}`, "ok");
+    } catch (e: any) { toast("Generate failed: " + (e.message || e), "err"); }
+    finally { setGenRole(null); }
+  };
+  const genMissing = async () => {
+    for (let i = 0; i < roles.length; i++) {
+      if (!roles[i].agent || !agentNames.includes(roles[i].agent)) await genAgent(i);
+    }
+  };
+
+  const delWf = async (name: string) => {
+    if (!(await confirm(`Delete workflow “${name}”? A timestamped backup is written first, so it's recoverable.`, true))) return;
+    try { await api.deleteWorkflow(name, proj || undefined); toast(`Deleted ${name}`, "ok"); loadWfs(); }
+    catch (e: any) { toast("Delete failed: " + (e.message || e), "err"); }
+  };
 
   const generate = () => {
     if (!/^[a-z0-9][a-z0-9_-]*$/.test(name)) { toast("Name must be a lowercase slug", "err"); return; }
@@ -122,6 +157,7 @@ export function TeamPage() {
     try {
       const r = await api.saveWorkflow(name, script, proj || undefined);
       toast(`Saved to ${r.path}${r.backup ? " (previous backed up)" : ""}`, "ok");
+      loadWfs();
     } catch (e: any) { toast("Save failed: " + (e.message || e), "err"); }
     finally { setSaving(false); }
   };
@@ -162,24 +198,63 @@ export function TeamPage() {
         </div>
       </Card>
 
-      <Card title="Roles" sub="assign a teammate to each; leave on default to use a general worker">
-        {roles.map((r, i) => (
-          <div key={r.key} style={{ padding: "12px 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
-              <input className="input-sm" style={{ fontWeight: 600, width: 180 }} value={r.title} onChange={(e) => setRole(i, { title: e.target.value })} />
-              <span style={{ color: "var(--muted)", fontSize: 12 }}>played by</span>
-              <Select value={r.agent} options={agentNames} allowEmpty="(default worker)" onChange={(v) => setRole(i, { agent: v })} />
-              {r.agent && !agentNames.includes(r.agent) && <span className="badge ask" style={{ fontSize: 10 }}>unknown agent</span>}
+      <Card
+        title="Roles"
+        sub="assign a teammate to each, or generate one with AI"
+        right={missing.length > 0 ? (
+          <button className="btn sm" disabled={genRole !== null} onClick={genMissing}>
+            {genRole ? "Generating…" : `✦ Generate ${missing.length} missing`}
+          </button>
+        ) : undefined}
+      >
+        {roles.map((r, i) => {
+          const needs = !r.agent || !agentNames.includes(r.agent);
+          return (
+            <div key={r.key} style={{ padding: "12px 0", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+                <input className="input-sm" style={{ fontWeight: 600, width: 180 }} value={r.title} onChange={(e) => setRole(i, { title: e.target.value })} />
+                <span style={{ color: "var(--muted)", fontSize: 12 }}>played by</span>
+                <Select value={r.agent} options={agentNames} allowEmpty="(default worker)" onChange={(v) => setRole(i, { agent: v })} />
+                {r.agent && !agentNames.includes(r.agent) && <span className="badge ask" style={{ fontSize: 10 }}>not created yet</span>}
+                {needs && (
+                  <button className="btn ghost sm" disabled={genRole !== null} onClick={() => genAgent(i)} title="AI-generate this teammate and add it to your roster">
+                    {genRole === r.key ? "Generating…" : "✦ Generate teammate"}
+                  </button>
+                )}
+              </div>
+              <textarea rows={2} value={r.instruction} onChange={(e) => setRole(i, { instruction: e.target.value })} style={{ fontSize: 12.5 }} />
             </div>
-            <textarea rows={2} value={r.instruction} onChange={(e) => setRole(i, { instruction: e.target.value })} style={{ fontSize: 12.5 }} />
-          </div>
-        ))}
+          );
+        })}
       </Card>
 
       <div style={{ display: "flex", gap: 8, margin: "4px 0 14px" }}>
         <button className="btn primary" onClick={generate}>Generate workflow</button>
         {script && <button className="btn" disabled={saving} onClick={save}>{saving ? "Saving…" : "Save to .claude/workflows/"}</button>}
       </div>
+
+      <Card
+        title="Saved workflows"
+        sub={`${current?.isGlobal ? "~/.claude" : (proj || "~/.claude")}/workflows`}
+        right={<button className="btn ghost sm" onClick={loadWfs}>Refresh</button>}
+      >
+        {wfs.length === 0 ? (
+          <div className="empty-state" style={{ padding: 18, fontSize: 12.5 }}>No workflows saved in this scope yet — generate one above.</div>
+        ) : wfs.map((w) => (
+          <div key={w.name} style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="mono" style={{ fontWeight: 600, fontSize: 13 }}>{w.name}</div>
+              <div style={{ fontSize: 11.5, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={w.path}>{w.description || w.path}</div>
+            </div>
+            <button
+              className="btn ghost sm"
+              title="Copy a prompt to run it in a Claude Code session"
+              onClick={() => { navigator.clipboard?.writeText(`Run the ${w.name} workflow on: `).then(() => toast("Run prompt copied — paste it into a session and add your brief", "ok"), () => {}); }}
+            >Copy run</button>
+            <button className="btn danger sm" onClick={() => delWf(w.name)}>Delete</button>
+          </div>
+        ))}
+      </Card>
 
       {script && (
         <Card
@@ -194,6 +269,7 @@ export function TeamPage() {
           </div>
         </Card>
       )}
+      {confirmNode}
     </div>
   );
 }
