@@ -16,17 +16,24 @@ end to end — **Plan → (Build ↔ Check loop, recycles until every check pass
 Sign-off** — and generates a real Claude Code *Workflow* you run from a session.
 One toggle switches between three views of the same team:
 
+- **Office** (the default view) — the team as a **real 3D office you can orbit** (drag to rotate, scroll to zoom): every agent is a named teammate seated at a desk with a laptop, people idle and screens flicker, and a **supervisor** oversees the run. **Drag an agent to another desk** to move it; click a desk for a popup to edit just that teammate.
 - **Flow** — a node graph of the pipeline (phases color-coded, the recycle loop bracketed). **Drag a node** to reorder it, or drop it on another phase to move it; click one to edit.
-- **Office** — the same team as an isometric 3D office: every agent is a named teammate seated at a desk with a laptop, the monitors flicker and people idle, and a **supervisor** oversees the whole run. Click any desk for a popup to edit just that teammate.
 - **Edit** — the full roster list (reorder, retype, reassign, generate missing teammates with AI).
 
 Each role maps to a real teammate (or the default worker), and every saved workflow can be
 **re-opened and edited** — the builder round-trips losslessly via a sidecar, so a team is
 never write-once. Save as many distinct pipelines as you like (one file per name):
 
+![Team Pipeline — the Office view: a real 3D office, each named agent at a desk with a laptop, a supervisor overseeing](docs/office.png)
+
 ![Team Pipeline — flow graph: Plan → recycle loop → Sign-off, nodes mapped to your agent roster](docs/team-pipeline.png)
 
-![Team Pipeline — the Office view: each named agent at a desk with a laptop, a supervisor overseeing](docs/office.png)
+**Who's Working** shows every live Claude Code session on this machine. Open one to see
+the session **as an office** too — the agents it has spawned in its latest run, seated at
+desks and color-coded by status (▶ working now · ⏳ waiting · ⏸ on hold), alongside a
+step-by-step activity log of what it's doing:
+
+![Who's Working — a running session as an office, agents color-coded by status](docs/session-office.png)
 
 ## Features
 
