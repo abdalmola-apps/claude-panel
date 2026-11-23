@@ -14,12 +14,14 @@ drafts a hook from a plain-language description (via the local `claude` CLI):
 **Team Pipeline** assembles your agent roster into a software team that runs a task
 end to end — **Plan → (Build ↔ Check loop, recycles until every check passes) →
 Sign-off** — and generates a real Claude Code *Workflow* you run from a session.
-Each role maps to a real teammate (or the default worker), roles **reorder** with
-the ↑/↓ arrows, and every saved workflow can be **re-opened and edited** — the
-builder round-trips losslessly via a sidecar, so a team is never write-once. Save
-as many distinct pipelines as you like (one file per name):
+A live **flow graph** shows the pipeline as a node diagram (phases color-coded, the
+recycle loop bracketed, each node a role → its agent) — click a node to jump
+straight to it. Each role maps to a real teammate (or the default worker), roles
+**reorder** with the ↑/↓ arrows, and every saved workflow can be **re-opened and
+edited** — the builder round-trips losslessly via a sidecar, so a team is never
+write-once. Save as many distinct pipelines as you like (one file per name):
 
-![Team Pipeline — reorderable roles mapped to your agent roster](docs/team-pipeline.png)
+![Team Pipeline — flow graph: Plan → recycle loop → Sign-off, nodes mapped to your agent roster](docs/team-pipeline.png)
 
 ## Features
 

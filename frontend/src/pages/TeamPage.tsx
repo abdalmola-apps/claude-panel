@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
 import { useStore } from "../lib/store";
 import { Card, Select, useConfirm } from "../components/ui";
+import { PipelineGraph } from "../components/PipelineGraph";
 import type { Agent, Project } from "../lib/types";
 
 type RoleType = "plan" | "build" | "check" | "signoff";
@@ -106,8 +107,15 @@ export function TeamPage() {
   const [script, setScript] = useState("");
   const [saving, setSaving] = useState(false);
   const [genRole, setGenRole] = useState<string | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
   const [wfs, setWfs] = useState<{ name: string; description: string; path: string }[]>([]);
   const { confirm, node: confirmNode } = useConfirm();
+
+  const pickRole = (key: string) => {
+    document.getElementById("pg-role-" + key)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setFlash(key);
+    window.setTimeout(() => setFlash((f) => (f === key ? null : f)), 1200);
+  };
 
   useEffect(() => { api.projects().then((r) => setProjects(r.projects)).catch(() => {}); }, []);
   useEffect(() => { api.listAgents().then((r) => setAgents(r.agents)).catch(() => {}); }, []);
@@ -239,6 +247,10 @@ export function TeamPage() {
         </div>
       </Card>
 
+      <Card title="Flow" sub="your pipeline as a graph — Plan → recycle loop → Sign-off · click a node to edit it">
+        <PipelineGraph roles={roles} maxCycles={maxCycles} agentNames={agentNames} onPick={pickRole} />
+      </Card>
+
       <Card
         title="Roles"
         sub="assign a teammate to each, or generate one with AI"
@@ -251,7 +263,7 @@ export function TeamPage() {
         {roles.map((r, i) => {
           const needs = r.enabled && (!r.agent || !agentNames.includes(r.agent));
           return (
-            <div key={r.key} style={{ padding: "12px 0", borderBottom: "1px solid var(--border)", opacity: r.enabled ? 1 : 0.5 }}>
+            <div key={r.key} id={"pg-role-" + r.key} className={"role-row" + (flash === r.key ? " flash" : "")} style={{ padding: "12px 10px", borderBottom: "1px solid var(--border)", opacity: r.enabled ? 1 : 0.5 }}>
               <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
                 <span style={{ display: "inline-flex", flexDirection: "column", lineHeight: 0.8, flexShrink: 0 }}>
                   <button className="btn ghost sm" style={{ padding: "0 5px", minWidth: 0, color: i === 0 ? "var(--border)" : "var(--muted)" }} disabled={i === 0} title="Move up" onClick={() => moveRole(i, -1)}>▲</button>

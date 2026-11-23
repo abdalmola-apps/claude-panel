@@ -25,6 +25,10 @@
   --ask-bg:    #d2992218;
   --deny:      #f05c5c;
   --deny-bg:   #f05c5c18;
+  --pg-plan:    #6e79d6;
+  --pg-build:   #3fb950;
+  --pg-check:   #d29922;
+  --pg-signoff: #2bb3a3;
   --shadow:    0 8px 30px rgba(0, 0, 0, 0.45);
   --radius:    8px;
   --radius-sm: 6px;
@@ -52,6 +56,10 @@
   --ask-bg:    #9a670012;
   --deny:      #cf222e;
   --deny-bg:   #cf222e10;
+  --pg-plan:    #4f5bd5;
+  --pg-build:   #1a7f37;
+  --pg-check:   #9a6700;
+  --pg-signoff: #0d9488;
   --shadow:    0 6px 24px rgba(20, 30, 50, 0.12);
 }
 
@@ -398,3 +406,59 @@ a.link:hover { text-decoration: underline; }
   .form-grid { grid-template-columns: 1fr; }
   .main { padding-inline: 16px; }
 }
+
+/* ------------------------------------------------------------------ *
+ * Team Pipeline — flow graph (nodes + recycle loop)
+ * ------------------------------------------------------------------ */
+.pg-wrap { overflow-x: auto; padding: 2px 2px 8px; }
+.pg-graph { display: flex; align-items: center; gap: 10px; min-width: min-content; }
+
+.pg-lane { display: flex; flex-direction: column; gap: 8px; align-self: flex-start; }
+.pg-lane-head {
+  font-size: 10px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+  color: var(--muted); padding-inline-start: 2px; margin-bottom: 1px;
+}
+
+.pg-node {
+  position: relative; text-align: start; cursor: pointer; font: inherit;
+  display: flex; flex-direction: column; gap: 2px;
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--c, var(--border-2));
+  border-radius: var(--radius-sm); padding: 8px 10px; min-width: 156px;
+  transition: border-color .12s ease, background .12s ease, transform .12s ease;
+}
+.pg-node:hover { background: var(--raised); border-color: var(--border-2); transform: translateY(-1px); }
+.pg-node:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pg-node[data-type="plan"]    { --c: var(--pg-plan); }
+.pg-node[data-type="build"]   { --c: var(--pg-build); }
+.pg-node[data-type="check"]   { --c: var(--pg-check); }
+.pg-node[data-type="signoff"] { --c: var(--pg-signoff); }
+.pg-node-dot { position: absolute; top: 10px; inset-inline-end: 10px; width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+.pg-node-title { font-weight: 600; font-size: 12.5px; padding-inline-end: 14px; }
+.pg-node-agent { font-size: 11px; color: var(--text-2); font-family: var(--mono); }
+
+.pg-conn { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 46px; }
+.pg-arrow { width: 44px; height: 12px; display: block; }
+.pg-arrow path { fill: none; stroke: var(--border-2); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.pg-arrow.dashed path { stroke-dasharray: 3 2.5; stroke: var(--ask); }
+.pg-conn-label { font-size: 10px; color: var(--allow); font-weight: 700; letter-spacing: .02em; }
+
+.pg-loop {
+  display: flex; flex-direction: column; gap: 8px; align-self: center;
+  border: 1px dashed var(--border-2); border-radius: var(--radius);
+  padding: 9px 10px; background: var(--bg-2);
+}
+.pg-loop-head { font-size: 11px; color: var(--text-2); display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.pg-loop-badge {
+  font-size: 10px; font-weight: 700; color: var(--ask);
+  background: var(--ask-bg); border: 1px solid var(--ask);
+  border-radius: 20px; padding: 1px 8px; white-space: nowrap;
+}
+.pg-loop-body { display: flex; align-items: flex-start; gap: 10px; }
+.pg-loop-return { display: flex; align-items: center; gap: 7px; font-size: 10.5px; color: var(--muted); }
+
+.pg-empty { padding: 16px; color: var(--muted); font-size: 12.5px; text-align: center; }
+
+.role-row { scroll-margin-block: 90px; border-radius: 6px; transition: outline-color .2s ease, background .2s ease; outline: 2px solid transparent; outline-offset: 3px; }
+.role-row.flash { outline-color: var(--accent); background: var(--accent-bg); }
