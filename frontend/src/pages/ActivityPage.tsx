@@ -1,9 +1,33 @@
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useStore } from "../lib/store";
 import { tildePath } from "../lib/util";
 import { Card, Modal } from "../components/ui";
-import type { Worker } from "../lib/types";
+import type { SessionAgent, Worker } from "../lib/types";
+import type { GridSeat } from "../components/OfficeView";
+
+const OfficeView = lazy(() => import("../components/OfficeView").then((m) => ({ default: m.OfficeView })));
+
+const AGENT_STATUS: Record<string, { c: number; hex: string; icon: string; label: string }> = {
+  working: { c: 0x30c070, hex: "#30c070", icon: "▶", label: "working now" },
+  waiting: { c: 0xd9a334, hex: "#d9a334", icon: "⏳", label: "waiting" },
+  hold: { c: 0x8a93a0, hex: "#8a93a0", icon: "⏸", label: "on hold" },
+};
+
+const COLOR_NAME: Record<string, string> = {
+  blue: "#6e79d6", green: "#3fb950", orange: "#d29922", yellow: "#d29922", teal: "#2bb3a3",
+  cyan: "#2bb3a3", purple: "#a07cc5", magenta: "#c678cc", red: "#f05c5c", pink: "#e06ba8",
+};
+const PALETTE = ["#6e79d6", "#3fb950", "#d29922", "#2bb3a3", "#a07cc5", "#e06ba8", "#4aa3df", "#e0894a"];
+function agentColor(c: string, type: string) {
+  if (c && COLOR_NAME[c]) return COLOR_NAME[c];
+  let h = 0; for (let i = 0; i < type.length; i++) h = (h * 31 + type.charCodeAt(i)) >>> 0;
+  return PALETTE[h % PALETTE.length];
+}
+function initials(t: string) {
+  const parts = t.replace(/[^a-zA-Z0-9]+/g, " ").trim().split(" ").filter(Boolean);
+  return ((parts[0]?.[0] || "") + (parts[1]?.[0] || parts[0]?.[1] || "")).toUpperCase() || "A";
+}
 
 const PHASE: Record<string, { color: string; ico: string }> = {
   "Implementing": { color: "var(--accent)", ico: "✎" },
@@ -42,6 +66,8 @@ export function ActivityPage() {
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [stopping, setStopping] = useState<Worker | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [agents, setAgents] = useState<SessionAgent[] | null>(null);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -55,7 +81,18 @@ export function ActivityPage() {
     return () => clearInterval(id);
   }, [refresh]);
 
+  // load the session's agent roster while the detail modal is open
+  useEffect(() => {
+    if (!detailId) { setAgents(null); return; }
+    let alive = true;
+    const load = () => api.sessionAgents(detailId).then((r) => { if (alive) setAgents(r.agents); }).catch(() => {});
+    load();
+    const id = setInterval(load, 4000);
+    return () => { alive = false; clearInterval(id); };
+  }, [detailId]);
+
   const head = workers.find((w) => w.status === "working");
+  const detail = detailId ? workers.find((w) => w.sessionId === detailId) : null;
 
   const doStop = async () => {
     if (!stopping) return;
@@ -70,13 +107,20 @@ export function ActivityPage() {
     } finally { setBusy(false); }
   };
 
+  const seats: GridSeat[] = (agents || []).map((a) => {
+    const s = AGENT_STATUS[a.status] || AGENT_STATUS.hold;
+    return { key: a.type, line1: `${s.icon} ${a.type}`, line2: `${a.count} task${a.count > 1 ? "s" : ""} · ${s.label}`, colorHex: s.c };
+  });
+
   return (
     <div className="main-inner">
+      {!detail && (<>
       <div className="page-head">
         <h1>Who&rsquo;s Working <span className="badge neutral" style={{ verticalAlign: "middle" }}>{workers.length}</span></h1>
         <p>
           Every running Claude Code session on this machine, live — each one is a “worker” with its current
-          task, derived phase, and recent steps. Refreshes every 4&nbsp;seconds. You can <b>stop</b> a session;
+          task, derived phase, and recent steps. <b>Click a session</b> for full details — which sub-agent is
+          working now and the step-by-step activity. Refreshes every 4&nbsp;seconds. You can <b>stop</b> a session;
           redirecting a running one from here isn&rsquo;t possible — stop it, or type in its own terminal.
         </p>
       </div>
@@ -114,9 +158,12 @@ export function ActivityPage() {
           return (
             <div
               key={w.sessionId}
+              onClick={() => setDetailId(w.sessionId)}
+              title="Click for session details"
               style={{
                 border: "1px solid var(--border)", borderRadius: "var(--radius, 8px)",
                 background: "var(--panel)", padding: 14, display: "flex", flexDirection: "column", gap: 10,
+                cursor: "pointer",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -131,6 +178,13 @@ export function ActivityPage() {
                 <span style={{ color: "var(--muted)", fontSize: 11 }}>TASK</span><br />
                 {w.currentTask || <span style={{ color: "var(--muted)" }}>{w.firstTask || "(no task captured)"}</span>}
               </div>
+
+              {w.subagent && (
+                <div style={{ fontSize: 11.5, lineHeight: 1.4 }}>
+                  <span style={{ color: "#a07cc5", fontWeight: 700 }}>→ {w.subagent.type || "subagent"}</span>
+                  {w.subagent.task && <span style={{ color: "var(--muted)" }}> · {w.subagent.task}</span>}
+                </div>
+              )}
 
               {(w.lastTool || w.lastText) && (
                 <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.4, maxHeight: 50, overflow: "hidden" }}>
@@ -157,13 +211,73 @@ export function ActivityPage() {
                 <button
                   className="btn ghost sm"
                   style={{ marginInlineStart: "auto", color: "var(--deny, #e05555)" }}
-                  onClick={() => setStopping(w)}
+                  onClick={(e) => { e.stopPropagation(); setStopping(w); }}
                 >Stop</button>
               </div>
             </div>
           );
         })}
       </div>
+      </>)}
+
+      {detail && (
+        <>
+          <div className="page-head" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <button className="btn ghost sm" onClick={() => setDetailId(null)}>← Back</button>
+            <h1 style={{ margin: 0 }}>{base(detail.project)}</h1>
+            <span style={{ color: (PHASE[detail.phase] ?? PHASE.Thinking).color, fontWeight: 700, fontSize: 13 }}>{(PHASE[detail.phase] ?? PHASE.Thinking).ico} {detail.phase}</span>
+            {detail.model && <span style={{ color: "var(--muted)", fontSize: 12 }}>◆ {detail.model.replace(/^claude-/, "")}</span>}
+            <span style={{ color: "var(--muted)", fontSize: 12 }}>◷ {dur(detail.uptimeSec)} · {dur(detail.ageSec)} ago · <span className="mono">#{detail.pid}</span></span>
+            <button className="btn danger sm" style={{ marginInlineStart: "auto" }} onClick={() => setStopping(detail)}>Stop session</button>
+          </div>
+
+          <Card title="The office" sub="every agent this session has worked with — at a desk, color-coded by status">
+            {agents === null ? (
+              <div className="pg-empty" style={{ padding: 30 }}>Reading the session…</div>
+            ) : agents.length === 0 ? (
+              <div className="pg-empty" style={{ padding: 30 }}>This session hasn’t spawned any sub-agents yet — it’s working on its own.</div>
+            ) : (
+              <Suspense fallback={<div className="pg-empty" style={{ padding: 30 }}>Loading the 3D office…</div>}>
+                <OfficeView
+                  grid={seats}
+                  title={base(detail.project)}
+                  onPick={() => {}}
+                  legend={<>
+                    <span className="ov-chip"><i style={{ background: AGENT_STATUS.working.hex }} />Working now</span>
+                    <span className="ov-chip"><i style={{ background: AGENT_STATUS.waiting.hex }} />Waiting</span>
+                    <span className="ov-chip"><i style={{ background: AGENT_STATUS.hold.hex }} />On hold</span>
+                    <span style={{ color: "var(--muted)", fontSize: 11 }}>· {agents.reduce((s, a) => s + a.count, 0)} tasks across {agents.length} agents</span>
+                  </>}
+                />
+              </Suspense>
+            )}
+          </Card>
+
+          <Card title="What it’s doing now" sub={detail.currentTask || detail.firstTask || "(no task captured)"}>
+            {detail.subagent && (
+              <div style={{ padding: "9px 12px", borderRadius: 8, background: "#a07cc518", border: "1px solid #a07cc555", marginBottom: 12 }}>
+                <div style={{ fontSize: 10.5, color: "var(--muted)", letterSpacing: ".06em" }}>WORKING NOW VIA SUB-AGENT</div>
+                <div style={{ fontWeight: 700, color: "#a07cc5" }}>→ {detail.subagent.type || "subagent"}</div>
+                {detail.subagent.task && <div style={{ fontSize: 12.5, marginTop: 2, lineHeight: 1.45 }}>{detail.subagent.task}</div>}
+              </div>
+            )}
+            <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 4 }}>ACTIVITY <span style={{ fontWeight: 400 }}>— most recent first</span></div>
+            <div style={{ maxHeight: 300, overflow: "auto", display: "flex", flexDirection: "column", gap: 3 }}>
+              {detail.steps && detail.steps.length > 0 ? [...detail.steps].reverse().map((s, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, alignItems: "baseline", fontSize: 12, padding: "4px 8px", borderRadius: 6, background: i === 0 ? "var(--accent-bg)" : "transparent" }}>
+                  <code className="mono" style={{ fontSize: 10.5, color: i === 0 ? "var(--accent)" : "var(--muted)", minWidth: 70, flexShrink: 0 }}>{i === 0 ? "▶ " : ""}{s.tool}</code>
+                  <span style={{ color: "var(--text-2)", wordBreak: "break-all", fontFamily: "var(--mono)", fontSize: 11 }}>{s.detail}</span>
+                </div>
+              )) : <div style={{ color: "var(--muted)", fontSize: 12, padding: 8 }}>No tool activity captured yet.</div>}
+            </div>
+            <div style={{ marginTop: 12, fontSize: 11.5, color: "var(--muted)", display: "flex", gap: 14, flexWrap: "wrap" }}>
+              <span>context {tok(detail.tokensIn)}</span>
+              <span>output {tok(detail.tokensOut)}</span>
+              <span className="mono" title={detail.cwd}>{tildePath(detail.cwd, meta?.paths?.home)}</span>
+            </div>
+          </Card>
+        </>
+      )}
 
       {stopping && (
         <Modal

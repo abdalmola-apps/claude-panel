@@ -95,9 +95,22 @@ export interface Worker {
   lastText: string;
   lastTool: string;
   recentTools: string[];
+  steps?: { tool: string; detail: string }[];
+  subagent?: { type: string; task: string } | null;
   model: string;
   tokensIn: number;
   tokensOut: number;
+}
+
+export interface SessionAgent {
+  type: string;
+  count: number;
+  tasks: string[];
+  color: string;
+  model: string;
+  running: boolean;
+  status: "working" | "waiting" | "hold" | string;
+  ago: number;
 }
 
 export interface CatalogEntry {

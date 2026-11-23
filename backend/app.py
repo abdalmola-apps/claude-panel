@@ -736,6 +736,8 @@ def _session_activity(path: Path) -> dict:
     last_user = ""
     last_text = ""
     recent_tools: list[str] = []
+    steps: list[dict] = []
+    last_subagent = None
     model = ""
     tin = tout = 0
     for ln in _tail_lines(path):
@@ -767,7 +769,24 @@ def _session_activity(path: Path) -> dict:
                     if not isinstance(c, dict):
                         continue
                     if c.get("type") == "tool_use":
-                        recent_tools.append(c.get("name", ""))
+                        name = c.get("name", "")
+                        recent_tools.append(name)
+                        inp = c.get("input") if isinstance(c.get("input"), dict) else {}
+                        detail = ""
+                        if name == "Bash":
+                            detail = (inp.get("command") or "")
+                        elif name in ("Edit", "Write", "Read", "NotebookEdit", "MultiEdit"):
+                            detail = inp.get("file_path") or inp.get("notebook_path") or ""
+                        elif name in ("Grep", "Glob"):
+                            detail = inp.get("pattern") or inp.get("query") or ""
+                        elif name in ("WebFetch", "WebSearch"):
+                            detail = inp.get("url") or inp.get("query") or ""
+                        elif name in ("Task", "Agent"):
+                            st = inp.get("subagent_type") or ""
+                            desc = inp.get("description") or (inp.get("prompt") or "")
+                            detail = (st + (": " if st and desc else "") + desc)
+                            last_subagent = {"type": st, "task": (inp.get("description") or inp.get("prompt") or "")[:200]}
+                        steps.append({"tool": name, "detail": str(detail)[:140]})
                     elif c.get("type") == "text" and c.get("text", "").strip():
                         last_text = c["text"].strip()[:240]
     recent_tools = [t for t in recent_tools if t][-14:]
@@ -782,6 +801,8 @@ def _session_activity(path: Path) -> dict:
         "lastText": last_text,
         "lastTool": recent_tools[-1] if recent_tools else "",
         "recentTools": recent_tools,
+        "steps": steps[-18:],
+        "subagent": last_subagent,
         "phase": phase,
         "model": model,
         "tokensIn": tin,
@@ -827,6 +848,8 @@ def get_activity():
             "lastText": act["lastText"],
             "lastTool": act["lastTool"],
             "recentTools": act["recentTools"],
+            "steps": act["steps"],
+            "subagent": act["subagent"],
             "model": act["model"],
             "tokensIn": act["tokensIn"],
             "tokensOut": act["tokensOut"],
@@ -834,6 +857,62 @@ def get_activity():
     workers.sort(key=lambda w: w["ageSec"])
     return {"workers": workers, "count": len(workers),
             "now": datetime.now().isoformat(timespec="seconds")}
+
+
+@app.get("/api/activity/agents")
+def session_agents(session: str = ""):
+    """The sub-agents/teammates a session has spawned, grouped by agent — each with its task count and whether it's active now."""
+    if not re.match(r"^[A-Za-z0-9._-]{1,120}$", session):
+        raise HTTPException(400, "bad session id")
+    hits = list(PROJECTS_DIR.glob(f"*/{session}.jsonl"))
+    if not hits:
+        return {"agents": [], "total": 0}
+    subdir = hits[0].parent / session / "subagents"
+    now = datetime.now().timestamp()
+    agents: dict[str, dict] = {}
+    if subdir.exists():
+        # rglob so we catch both top-level teammates AND live workflow role-agents under workflows/<wf>/
+        for meta in subdir.rglob("agent-*.meta.json"):
+            try:
+                m = json.loads(meta.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            atype = m.get("agentType") or m.get("name") or m.get("spawnedAgentType") or "agent"
+            jl = meta.with_name(meta.name[:-len(".meta.json")] + ".jsonl")
+            try:
+                mt = jl.stat().st_mtime
+            except Exception:
+                try:
+                    mt = meta.stat().st_mtime
+                except Exception:
+                    mt = 0
+            g = agents.setdefault(atype, {"type": atype, "count": 0, "tasks": [], "lastActive": 0.0, "color": m.get("color", ""), "model": m.get("model", "")})
+            g["count"] += 1
+            desc = (m.get("description") or "").strip()
+            if desc and desc not in g["tasks"]:
+                g["tasks"].append(desc[:160])
+            g["lastActive"] = max(g["lastActive"], mt)
+    out = []
+    for g in agents.values():
+        age = int(now - g["lastActive"]) if g["lastActive"] else 999999
+        status = "working" if age < 45 else ("waiting" if age < 600 else "hold")
+        out.append({
+            "type": g["type"], "count": g["count"], "tasks": g["tasks"][:8],
+            "color": g["color"], "model": g["model"],
+            "running": age < 45, "status": status, "ago": age,
+        })
+    # keep only the recent cluster (the last run): agents active within an hour of the
+    # most recent activity, plus anything running right now
+    if out:
+        freshest = min(a["ago"] for a in out)
+        cutoff = freshest + 3600
+        out = [a for a in out if a["ago"] <= cutoff or a["status"] == "working"]
+    rank = {"working": 0, "waiting": 1, "hold": 2}
+    out.sort(key=lambda a: (rank.get(a["status"], 3), a["ago"]))  # running first, then most recent
+    return {"agents": out, "total": sum(a["count"] for a in out),
+            "working": sum(1 for a in out if a["status"] == "working"),
+            "waiting": sum(1 for a in out if a["status"] == "waiting"),
+            "hold": sum(1 for a in out if a["status"] == "hold")}
 
 
 @app.post("/api/sessions/stop")

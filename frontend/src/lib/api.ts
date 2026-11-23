@@ -1,4 +1,4 @@
-import type { Agent, CatalogEntry, CliResult, MemoryGroup, Meta, Project, RunningProc, SandboxStats, SandboxStatus, Scope, Session, Settings, Skill, SystemInfo, Worker } from "./types";
+import type { Agent, CatalogEntry, CliResult, MemoryGroup, Meta, Project, RunningProc, SandboxStats, SandboxStatus, Scope, Session, SessionAgent, Settings, Skill, SystemInfo, Worker } from "./types";
 
 async function j<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -72,6 +72,8 @@ export const api = {
     ),
 
   activity: () => fetch("/api/activity").then((r) => j<{ workers: Worker[]; count: number; now: string }>(r)),
+  sessionAgents: (session: string) =>
+    fetch(`/api/activity/agents?session=${encodeURIComponent(session)}`).then((r) => j<{ agents: SessionAgent[]; total: number; working: number; waiting: number; hold: number }>(r)),
   stopSession: (pid: number | string) =>
     fetch("/api/sessions/stop", { method: "POST", headers: H, body: JSON.stringify({ pid }) }).then(
       (r) => j<{ ok: boolean; pid?: number; signal?: string; note?: string }>(r)
