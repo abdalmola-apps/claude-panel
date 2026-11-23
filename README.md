@@ -14,14 +14,19 @@ drafts a hook from a plain-language description (via the local `claude` CLI):
 **Team Pipeline** assembles your agent roster into a software team that runs a task
 end to end — **Plan → (Build ↔ Check loop, recycles until every check passes) →
 Sign-off** — and generates a real Claude Code *Workflow* you run from a session.
-A live **flow graph** shows the pipeline as a node diagram (phases color-coded, the
-recycle loop bracketed, each node a role → its agent) — click a node to jump
-straight to it. Each role maps to a real teammate (or the default worker), roles
-**reorder** with the ↑/↓ arrows, and every saved workflow can be **re-opened and
-edited** — the builder round-trips losslessly via a sidecar, so a team is never
-write-once. Save as many distinct pipelines as you like (one file per name):
+One toggle switches between three views of the same team:
+
+- **Flow** — a node graph of the pipeline (phases color-coded, the recycle loop bracketed). **Drag a node** to reorder it, or drop it on another phase to move it; click one to edit.
+- **Office** — the same team as an isometric 3D office: every agent is a named teammate seated at a desk with a laptop, the monitors flicker and people idle, and a **supervisor** oversees the whole run. Click any desk for a popup to edit just that teammate.
+- **Edit** — the full roster list (reorder, retype, reassign, generate missing teammates with AI).
+
+Each role maps to a real teammate (or the default worker), and every saved workflow can be
+**re-opened and edited** — the builder round-trips losslessly via a sidecar, so a team is
+never write-once. Save as many distinct pipelines as you like (one file per name):
 
 ![Team Pipeline — flow graph: Plan → recycle loop → Sign-off, nodes mapped to your agent roster](docs/team-pipeline.png)
+
+![Team Pipeline — the Office view: each named agent at a desk with a laptop, a supervisor overseeing](docs/office.png)
 
 ## Features
 

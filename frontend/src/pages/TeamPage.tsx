@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
 import { useStore } from "../lib/store";
-import { Card, Select, useConfirm } from "../components/ui";
+import { Card, Modal, Segmented, Select, useConfirm } from "../components/ui";
 import { PipelineGraph } from "../components/PipelineGraph";
+import { OfficeView } from "../components/OfficeView";
 import type { Agent, Project } from "../lib/types";
 
 type RoleType = "plan" | "build" | "check" | "signoff";
@@ -108,13 +109,19 @@ export function TeamPage() {
   const [saving, setSaving] = useState(false);
   const [genRole, setGenRole] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  const [view, setView] = useState<"flow" | "office" | "edit">("flow");
+  const [editKey, setEditKey] = useState<string | null>(null); // office: edit one role in a popup
   const [wfs, setWfs] = useState<{ name: string; description: string; path: string }[]>([]);
   const { confirm, node: confirmNode } = useConfirm();
 
+  // click a node → open the edit view and jump to that role
   const pickRole = (key: string) => {
-    document.getElementById("pg-role-" + key)?.scrollIntoView({ behavior: "smooth", block: "center" });
-    setFlash(key);
-    window.setTimeout(() => setFlash((f) => (f === key ? null : f)), 1200);
+    setView("edit");
+    window.setTimeout(() => {
+      document.getElementById("pg-role-" + key)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setFlash(key);
+      window.setTimeout(() => setFlash((f) => (f === key ? null : f)), 1200);
+    }, 60);
   };
 
   useEffect(() => { api.projects().then((r) => setProjects(r.projects)).catch(() => {}); }, []);
@@ -139,6 +146,27 @@ export function TeamPage() {
       if (j < 0 || j >= rs.length) return rs;
       const next = rs.slice();
       [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+
+  // drag a node on the Flow graph: reorder, and move it to another phase if dropped on a different lane
+  const moveByDrag = (dragKey: string, targetKey: string | null, targetType: RoleType) =>
+    setRoles((rs) => {
+      const from = rs.findIndex((r) => r.key === dragKey);
+      if (from < 0) return rs;
+      const moved = { ...rs[from], type: targetType };
+      const without = rs.filter((r) => r.key !== dragKey);
+      let at = without.length;
+      if (targetKey) {
+        const ti = without.findIndex((r) => r.key === targetKey);
+        at = ti < 0 ? without.length : ti;
+      } else {
+        let last = -1;
+        without.forEach((r, i) => { if (r.type === targetType) last = i; });
+        at = last >= 0 ? last + 1 : without.length;
+      }
+      const next = without.slice();
+      next.splice(at, 0, moved);
       return next;
     });
 
@@ -247,19 +275,30 @@ export function TeamPage() {
         </div>
       </Card>
 
-      <Card title="Flow" sub="your pipeline as a graph — Plan → recycle loop → Sign-off · click a node to edit it">
-        <PipelineGraph roles={roles} maxCycles={maxCycles} agentNames={agentNames} onPick={pickRole} />
-      </Card>
-
       <Card
-        title="Roles"
-        sub="assign a teammate to each, or generate one with AI"
-        right={missing.length > 0 ? (
-          <button className="btn sm" disabled={genRole !== null} onClick={genMissing}>
-            {genRole ? "Generating…" : `✦ Generate ${missing.length} missing`}
-          </button>
-        ) : undefined}
+        title={view === "flow" ? "Flow" : view === "office" ? "Office" : "Edit roles"}
+        sub={view === "flow"
+          ? "your pipeline as a graph — drag a node to reorder or move it to another phase · click a node to edit it"
+          : view === "office"
+          ? "your team as a 3D office — each agent at a desk, the supervisor overseeing · click a desk to edit"
+          : "assign a teammate to each, reorder, or generate one with AI"}
+        right={
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {view === "edit" && missing.length > 0 && (
+              <button className="btn sm" disabled={genRole !== null} onClick={genMissing}>
+                {genRole ? "Generating…" : `✦ Generate ${missing.length} missing`}
+              </button>
+            )}
+            <Segmented value={view} options={[{ value: "flow", label: "Flow" }, { value: "office", label: "Office" }, { value: "edit", label: "Edit" }]} onChange={(v) => setView(v)} />
+          </div>
+        }
       >
+        {view === "flow" ? (
+          <PipelineGraph roles={roles} maxCycles={maxCycles} agentNames={agentNames} onPick={pickRole} onMove={moveByDrag} />
+        ) : view === "office" ? (
+          <OfficeView roles={roles} agentNames={agentNames} onPick={setEditKey} />
+        ) : (
+        <>
         {roles.map((r, i) => {
           const needs = r.enabled && (!r.agent || !agentNames.includes(r.agent));
           return (
@@ -290,8 +329,11 @@ export function TeamPage() {
         })}
         <div style={{ paddingTop: 10, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <button className="btn ghost sm" onClick={addRole}>+ Add role</button>
+          <button className="btn ghost sm" onClick={() => setView("flow")}>← Back to Flow</button>
           <span style={{ color: "var(--muted)", fontSize: 11 }}>Flow: <b>Plan</b> → (<b>Build</b> ↔ <b>Check</b> loop, recycles until all checks pass) → <b>Sign-off</b>. Uncheck any you don&rsquo;t need.</span>
         </div>
+        </>
+        )}
       </Card>
 
       <div style={{ display: "flex", gap: 8, margin: "4px 0 14px" }}>
@@ -336,6 +378,56 @@ export function TeamPage() {
           </div>
         </Card>
       )}
+      {editKey && (() => {
+        const ei = roles.findIndex((r) => r.key === editKey);
+        if (ei < 0) return null;
+        const r = roles[ei];
+        const needs = r.enabled && (!r.agent || !agentNames.includes(r.agent));
+        return (
+          <Modal
+            title={`Edit teammate · ${r.title || "role"}`}
+            width={500}
+            onClose={() => setEditKey(null)}
+            footer={<>
+              <button className="btn danger sm" style={{ marginInlineEnd: "auto" }} onClick={() => { removeRole(ei); setEditKey(null); }}>Remove</button>
+              <button className="btn primary sm" onClick={() => setEditKey(null)}>Done</button>
+            </>}
+          >
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 12 }}>
+              <input type="checkbox" checked={r.enabled} onChange={(e) => setRole(ei, { enabled: e.target.checked })} style={{ width: 15, height: 15 }} />
+              Included in the pipeline
+            </label>
+            <div className="form-grid">
+              <div className="field">
+                <label>Role name</label>
+                <input className="input-sm" value={r.title} onChange={(e) => setRole(ei, { title: e.target.value })} />
+              </div>
+              <div className="field">
+                <label>Phase</label>
+                <select className="scope-select" style={{ marginInlineStart: 0, width: "100%" }} value={r.type} onChange={(e) => setRole(ei, { type: e.target.value as RoleType })}>
+                  {ROLE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label} — {t.hint}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="field" style={{ marginTop: 10 }}>
+              <label>Played by</label>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <Select value={r.agent} options={agentNames} allowEmpty="(default worker)" onChange={(v) => setRole(ei, { agent: v })} />
+                {r.agent && !agentNames.includes(r.agent) && <span className="badge ask" style={{ fontSize: 10 }}>not created yet</span>}
+                {needs && (
+                  <button className="btn ghost sm" disabled={genRole !== null} onClick={() => genAgent(ei)} title="AI-generate this teammate and add it to your roster">
+                    {genRole === r.key ? "Generating…" : "✦ Generate teammate"}
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="field" style={{ marginTop: 10 }}>
+              <label>Working instructions</label>
+              <textarea rows={4} value={r.instruction} onChange={(e) => setRole(ei, { instruction: e.target.value })} style={{ fontSize: 12.5 }} placeholder="What this role does…" />
+            </div>
+          </Modal>
+        );
+      })()}
       {confirmNode}
     </div>
   );
