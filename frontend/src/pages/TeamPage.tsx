@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
 import { useStore } from "../lib/store";
 import { Card, Modal, Segmented, Select, useConfirm } from "../components/ui";
 import { PipelineGraph } from "../components/PipelineGraph";
-import { OfficeView } from "../components/OfficeView";
+const OfficeView = lazy(() => import("../components/OfficeView").then((m) => ({ default: m.OfficeView })));
 import type { Agent, Project } from "../lib/types";
 
 type RoleType = "plan" | "build" | "check" | "signoff";
@@ -101,7 +101,7 @@ export function TeamPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [proj, setProj] = useState<string>(""); // claudeDir of selected project ("" = global)
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [name, setName] = useState("product-team");
+  const [name, setName] = useState("");
   const [task, setTask] = useState("");
   const [maxCycles, setMaxCycles] = useState(3);
   const [roles, setRoles] = useState<Role[]>(DEFAULT_ROLES.map((r) => ({ ...r })));
@@ -109,7 +109,7 @@ export function TeamPage() {
   const [saving, setSaving] = useState(false);
   const [genRole, setGenRole] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
-  const [view, setView] = useState<"flow" | "office" | "edit">("flow");
+  const [view, setView] = useState<"flow" | "office" | "edit">("office");
   const [editKey, setEditKey] = useState<string | null>(null); // office: edit one role in a popup
   const [wfs, setWfs] = useState<{ name: string; description: string; path: string }[]>([]);
   const { confirm, node: confirmNode } = useConfirm();
@@ -139,6 +139,12 @@ export function TeamPage() {
     setRoles((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const addRole = () =>
     setRoles((rs) => [...rs, { key: "custom-" + Date.now(), title: "New role", agent: "", instruction: "", enabled: true, type: "build" as RoleType }]);
+  // add a teammate from the office/graph and immediately open its editor popup
+  const addFromOffice = () => {
+    const key = "custom-" + Date.now();
+    setRoles((rs) => [...rs, { key, title: "New teammate", agent: "", instruction: "Describe what this teammate does…", enabled: true, type: "build" as RoleType }]);
+    setEditKey(key);
+  };
   const removeRole = (i: number) => setRoles((rs) => rs.filter((_, j) => j !== i));
   const moveRole = (i: number, dir: -1 | 1) =>
     setRoles((rs) => {
@@ -219,8 +225,17 @@ export function TeamPage() {
     } catch (e: any) { toast("Open failed: " + (e.message || e), "err"); }
   };
 
+  const newWorkflow = () => {
+    setName(""); setTask(""); setMaxCycles(3);
+    setRoles(DEFAULT_ROLES.map((r) => ({ ...r })));
+    setScript(""); setEditKey(null);
+    toast("New workflow — name the office to begin", "ok");
+    window.setTimeout(() => document.getElementById("wf-name")?.focus(), 30);
+  };
+
   const generate = () => {
-    if (!/^[a-z0-9][a-z0-9_-]*$/.test(name)) { toast("Name must be a lowercase slug", "err"); return; }
+    if (!name.trim()) { toast("Name the office first — it becomes the workflow name", "err"); document.getElementById("wf-name")?.focus(); return; }
+    if (!/^[a-z0-9][a-z0-9_-]*$/.test(name)) { toast("Name must be a lowercase slug (letters, digits, - _)", "err"); return; }
     setScript(buildWorkflow(name, task, maxCycles, roles));
   };
 
@@ -250,7 +265,7 @@ export function TeamPage() {
         </p>
       </div>
 
-      <Card title="Pipeline">
+      <Card title="Pipeline" right={<button className="btn ghost sm" onClick={newWorkflow}>+ New workflow</button>}>
         <div className="form-grid">
           <div className="field">
             <label>Save to project</label>
@@ -261,8 +276,8 @@ export function TeamPage() {
             </select>
           </div>
           <div className="field">
-            <label>Workflow name <span style={{ color: "var(--muted)", fontWeight: 400 }}>— one file per name; rename to save a second team</span></label>
-            <input className="input-sm mono" value={name} onChange={(e) => setName(e.target.value.toLowerCase())} placeholder="product-team" />
+            <label>Office / workflow name <span style={{ color: "var(--deny)" }}>*</span> <span style={{ color: "var(--muted)", fontWeight: 400 }}>— names the office and the saved file (one per name)</span></label>
+            <input id="wf-name" className="input-sm mono" value={name} onChange={(e) => setName(e.target.value.toLowerCase())} placeholder="name-your-team" />
           </div>
         </div>
         <div className="field">
@@ -296,7 +311,9 @@ export function TeamPage() {
         {view === "flow" ? (
           <PipelineGraph roles={roles} maxCycles={maxCycles} agentNames={agentNames} onPick={pickRole} onMove={moveByDrag} />
         ) : view === "office" ? (
-          <OfficeView roles={roles} agentNames={agentNames} onPick={setEditKey} />
+          <Suspense fallback={<div className="pg-empty">Loading the 3D office…</div>}>
+            <OfficeView roles={roles} agentNames={agentNames} onPick={setEditKey} onAdd={addFromOffice} onMove={moveByDrag} title={name} onRename={(v) => setName(v)} />
+          </Suspense>
         ) : (
         <>
         {roles.map((r, i) => {

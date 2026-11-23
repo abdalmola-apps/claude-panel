@@ -497,3 +497,21 @@ a.link:hover { text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) {
   .ov-emp, .ov-screen, .ov-sup-fig { animation: none; }
 }
+
+/* Office — WebGL 3D container */
+.ov3d-wrap { padding: 2px; }
+.ov3d { width: 100%; height: 460px; border-radius: var(--radius-sm); overflow: hidden; cursor: grab; touch-action: none; background: var(--bg-2); }
+.ov3d:active { cursor: grabbing; }
+.ov3d canvas { display: block; }
+
+/* Office — title overlay */
+.ov3d-wrap { position: relative; }
+.ov3d-title { position: absolute; top: 12px; inset-inline-start: 14px; z-index: 2; font-size: 12.5px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 20px; padding: 4px 13px; box-shadow: var(--shadow); pointer-events: none; }
+.ov3d-title .muted { color: var(--muted); font-weight: 400; }
+
+/* Office — editable title */
+.ov3d-title { pointer-events: none; display: flex; align-items: center; gap: 2px; }
+.ov3d-title input.ov3d-name { pointer-events: auto; background: transparent; border: 1px solid transparent; color: var(--text); font-weight: 700; font-size: 12.5px; border-radius: 6px; padding: 1px 6px; width: 150px; }
+.ov3d-title input.ov3d-name:hover { border-color: var(--border); }
+.ov3d-title input.ov3d-name:focus { border-color: var(--accent); background: var(--panel-2); outline: none; }
+.ov3d-title input.ov3d-name::placeholder { color: var(--muted); font-weight: 400; }
